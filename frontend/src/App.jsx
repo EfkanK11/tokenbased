@@ -4,12 +4,39 @@ import addresses from "./contracts/addresses.json";
 import successTokenAbi from "./contracts/SuccessToken.abi.json";
 import rewardManagerAbi from "./contracts/RewardManager.abi.json";
 
-const HARDHAT_CHAIN_ID = 31337n;
+const EXPECTED_CHAIN_ID = BigInt(addresses.chainId);
+const NETWORK_NAME =
+  addresses.chainId === 80002
+    ? "Polygon Amoy Testnet"
+    : addresses.chainId === 31337
+    ? "Hardhat Local"
+    : `chainId ${addresses.chainId}`;
 const INSTRUCTOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("INSTRUCTOR_ROLE"));
+
+// Public testnet RPCs cap eth_getLogs block range (Amoy ≈ 100 blocks).
+// queryFilter over a wide range fails, so we walk it in chunks.
+const LOG_CHUNK = 100;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function shortAddr(addr) {
   return addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "";
+}
+
+// Query a contract event over [fromBlock, latest] in RPC-safe chunks.
+async function queryLogsChunked(contract, filter, provider, fromBlock) {
+  const latest = await provider.getBlockNumber();
+  const start = fromBlock ?? 0;
+  const all = [];
+  for (let from = start; from <= latest; from += LOG_CHUNK) {
+    const to = Math.min(from + LOG_CHUNK - 1, latest);
+    try {
+      const ev = await contract.queryFilter(filter, from, to);
+      if (ev.length) all.push(...ev);
+    } catch (_) {
+      // skip a window the RPC rejects; keep scanning the rest
+    }
+  }
+  return all;
 }
 
 // ─── Sub-panels ─────────────────────────────────────────────────────────────
@@ -30,7 +57,7 @@ function StudentPanel({ account, provider }) {
       // Fetch ActivityApproved events for this student
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, provider);
       const filter = manager.filters.ActivityApproved(null, account);
-      const events = await manager.queryFilter(filter, 0, "latest");
+      const events = await queryLogsChunked(manager, filter, provider, addresses.deployBlock);
       const parsed = events.map((e) => ({
         instructor: shortAddr(e.args.instructor),
         amount: ethers.formatEther(e.args.amount),
@@ -99,7 +126,7 @@ function InstructorPanel({ signer, provider }) {
     if (!provider) return;
     try {
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, provider);
-      const events = await manager.queryFilter(manager.filters.ActivityApproved(), 0, "latest");
+      const events = await queryLogsChunked(manager, manager.filters.ActivityApproved(), provider, addresses.deployBlock);
       setRecent(events.slice(-5).reverse().map((e) => ({
         student: shortAddr(e.args.student),
         amount: ethers.formatEther(e.args.amount),
@@ -254,7 +281,7 @@ function AdminPanel({ signer, provider, account }) {
     <div className="space-y-6">
       <div className="rounded-2xl bg-[#111827] border border-[#374151] p-6">
         <h2 className="text-base font-semibold text-white mb-1">System Information</h2>
-        <p className="text-xs text-[#6b7280] mb-5">Contract addresses on Hardhat Local (chainId 31337)</p>
+        <p className="text-xs text-[#6b7280] mb-5">Contract addresses on {NETWORK_NAME} (chainId {addresses.chainId})</p>
         <div className="space-y-3">
           {[
             { label: "SuccessToken (SCT)", addr: addresses.successToken },
@@ -328,7 +355,7 @@ export default function App() {
     setAccount(accounts[0]);
     setProvider(p);
     setSigner(s);
-    setChainOk(net.chainId === HARDHAT_CHAIN_ID);
+    setChainOk(net.chainId === EXPECTED_CHAIN_ID);
   }, []);
 
   useEffect(() => {
@@ -378,7 +405,7 @@ export default function App() {
           <>
             {!chainOk && (
               <div className="mb-6 rounded-xl bg-yellow-900/30 border border-yellow-700/50 px-4 py-3 text-sm text-[#fbbf24]">
-                ⚠️ Wrong network — switch MetaMask to <strong>Hardhat Local</strong> (chainId 31337)
+                ⚠️ Wrong network — switch MetaMask to <strong>{NETWORK_NAME}</strong> (chainId {addresses.chainId})
               </div>
             )}
             {/* Tab bar */}

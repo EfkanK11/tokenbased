@@ -1,5 +1,6 @@
 {
-  "successToken": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "rewardManager": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-  "chainId": 31337
+  "successToken": "0x54e8d0B2a50D583EcF59B137e93aE6Db69Cd638d",
+  "rewardManager": "0xa0468640c8153aDaA6B148810B9102dbac5FF54E",
+  "chainId": 80002,
+  "deployBlock": 39864100
 }
