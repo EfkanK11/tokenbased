@@ -1,27 +1,240 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Hanken+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
+/* ─── Design tokens: "Campus Mint" — chartered academic ledger ──────────────── */
 @theme {
-  --color-brand: #6366f1;
-  --color-brand-hover: #4f46e5;
-  --color-success: #4ade80;
-  --color-warn: #fbbf24;
-  --color-danger: #f87171;
-  --color-surface: #111827;
-  --color-surface-2: #1f2937;
-  --color-border: #374151;
-  --color-text-muted: #9ca3af;
-  --font-sans: system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", monospace;
+  --color-parchment:    #f0e7d4;  /* page */
+  --color-parchment-2:  #fbf7ec;  /* cards */
+  --color-parchment-3:  #f6efdf;  /* insets */
+  --color-ink:          #1c1813;  /* primary text */
+  --color-ink-soft:     #6a6051;  /* muted text */
+  --color-ink-faint:    #b3a88f;  /* placeholder */
+  --color-rule:         #d8cbae;  /* hairlines / borders */
+  --color-rule-strong:  #c4b48f;
+  --color-brass:        #a87c1e;  /* primary action / seal */
+  --color-brass-bright: #c89a36;
+  --color-forest:       #2f5d3a;  /* token amounts / success */
+  --color-oxblood:      #9b2c24;  /* danger */
+  --color-amber:        #a4691a;  /* warning */
+
+  --font-display: "Fraunces", "Georgia", serif;
+  --font-sans:    "Hanken Grotesk", system-ui, sans-serif;
+  --font-mono:    "IBM Plex Mono", ui-monospace, monospace;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  background: #0f1117;
-  color: #f9fafb;
+  min-height: 100vh;
+  color: var(--color-ink);
   font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv01";
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  background-color: #f0e7d4;
+  /* layered parchment: warm vignette + faint ledger tint */
+  background-image:
+    radial-gradient(1200px 600px at 50% -10%, #fbf6e8 0%, rgba(251,246,232,0) 60%),
+    radial-gradient(900px 500px at 100% 110%, #eadfc4 0%, rgba(234,223,196,0) 55%);
+  background-attachment: fixed;
+}
+
+/* fine paper grain overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.04;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ─── Engraved type helpers ─────────────────────────────────────────────────── */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+.display { font-family: var(--font-display); font-optical-sizing: auto; letter-spacing: -0.015em; }
+
+/* ─── Paper card: letterpress panel with brass top-rule ──────────────────────── */
+.paper {
+  position: relative;
+  background: var(--color-parchment-2);
+  border: 1px solid var(--color-rule);
+  border-radius: 6px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.7) inset,
+    0 14px 32px -22px rgba(40,32,16,0.55);
+}
+.paper--ruled::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 1.25rem; right: 1.25rem;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-brass) 18%, var(--color-brass-bright) 50%, var(--color-brass) 82%, transparent);
+  opacity: 0.8;
+}
+
+/* ─── Wax-seal monogram ─────────────────────────────────────────────────────── */
+.seal {
+  display: grid;
+  place-items: center;
+  width: 2.75rem; height: 2.75rem;
+  border-radius: 9999px;
+  color: var(--color-parchment-2);
+  background:
+    radial-gradient(circle at 35% 30%, var(--color-brass-bright), var(--color-brass) 55%, #7e5a13 100%);
+  box-shadow: 0 3px 10px -3px rgba(124,90,19,0.7), 0 0 0 1px rgba(126,90,19,0.5), 0 0 0 4px var(--color-parchment-2), 0 0 0 5px var(--color-rule-strong);
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+/* ─── Buttons ───────────────────────────────────────────────────────────────── */
+.btn {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 6px;
+  transition: transform 0.12s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease;
+  cursor: pointer;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+.btn-primary {
+  color: #fdf8ec;
+  background: linear-gradient(180deg, var(--color-brass-bright), var(--color-brass));
+  box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset, 0 8px 18px -10px rgba(124,90,19,0.8);
+}
+.btn-primary:hover:not(:disabled) { box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 10px 22px -8px rgba(124,90,19,0.85); }
+
+.btn-ghost {
+  color: var(--color-ink);
+  background: transparent;
+  border: 1px solid var(--color-rule-strong);
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--color-brass); color: var(--color-brass); }
+
+.btn-danger {
+  color: var(--color-oxblood);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--color-oxblood) 45%, transparent);
+}
+.btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--color-oxblood) 8%, transparent); border-color: var(--color-oxblood); }
+
+/* ─── Inputs ────────────────────────────────────────────────────────────────── */
+.field {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  background: var(--color-parchment-3);
+  border: 1px solid var(--color-rule);
+  border-radius: 6px;
+  padding: 0.7rem 0.9rem;
+  box-shadow: 0 1px 2px rgba(40,32,16,0.05) inset;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.field::placeholder { color: #b3a88f; }
+.field:focus {
+  outline: none;
+  border-color: var(--color-brass);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brass) 22%, transparent);
+}
+.label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  margin-bottom: 0.4rem;
+}
+
+/* ─── Trophy frame for badges ───────────────────────────────────────────────── */
+.trophy {
+  position: relative;
+  background:
+    linear-gradient(180deg, var(--color-parchment-2), var(--color-parchment-3));
+  border: 1px solid var(--color-rule-strong);
+  border-radius: 8px;
+  padding: 0.85rem;
+  box-shadow: 0 10px 22px -18px rgba(40,32,16,0.6);
+}
+.trophy::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px solid color-mix(in srgb, var(--color-brass) 35%, transparent);
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+/* ─── Status banners ────────────────────────────────────────────────────────── */
+.banner { border-radius: 6px; padding: 0.7rem 0.95rem; font-size: 0.875rem; font-family: var(--font-mono); }
+.banner-ok   { background: color-mix(in srgb, var(--color-forest) 12%, transparent); color: var(--color-forest); border: 1px solid color-mix(in srgb, var(--color-forest) 30%, transparent); }
+.banner-err  { background: color-mix(in srgb, var(--color-oxblood) 10%, transparent); color: var(--color-oxblood); border: 1px solid color-mix(in srgb, var(--color-oxblood) 30%, transparent); }
+.banner-wait { background: var(--color-parchment-3); color: var(--color-ink-soft); border: 1px solid var(--color-rule); }
+.banner-warn { background: color-mix(in srgb, var(--color-amber) 12%, transparent); color: var(--color-amber); border: 1px solid color-mix(in srgb, var(--color-amber) 32%, transparent); }
+
+/* ─── Ledger table ──────────────────────────────────────────────────────────── */
+.ledger { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.ledger thead th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  font-weight: 500;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-rule-strong);
+}
+.ledger tbody td { padding: 0.6rem 0; border-bottom: 1px dashed var(--color-rule); }
+.ledger tbody tr:last-child td { border-bottom: none; }
+
+/* ─── Tab underline ─────────────────────────────────────────────────────────── */
+.tab {
+  position: relative;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
+  color: var(--color-ink-soft);
+  padding: 0.55rem 0.2rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+.tab:hover { color: var(--color-ink); }
+.tab[data-active="true"] { color: var(--color-ink); }
+.tab[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--color-brass), var(--color-brass-bright));
+}
+
+/* ─── Entrance animation ────────────────────────────────────────────────────── */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rise { opacity: 0; animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise { animation: none; opacity: 1; }
+  html { scroll-behavior: auto; }
 }

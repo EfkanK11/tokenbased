@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -131,27 +131,39 @@ contract AchievementBadge is ERC721, Ownable {
 
     // ─── Internal ───────────────────────────────────────────────────────────
 
-    /// @dev Builds a simple inline SVG artwork for the badge.
+    /// @dev Builds an inline SVG medal in the "Campus Mint" brand palette
+    ///      (parchment + brass + ink). Fully on-chain, no external fonts/hosts.
     function _svg(string memory name, uint256 level)
         internal
         pure
         returns (string memory)
     {
-        return string(
+        string memory lvl = level.toString();
+
+        // Frame + brass star medallion centred at (200,168).
+        string memory top = string(
             abi.encodePacked(
                 '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">',
-                '<rect width="400" height="400" fill="#0f1117"/>',
-                '<circle cx="200" cy="160" r="90" fill="none" stroke="#6366f1" stroke-width="8"/>',
-                '<text x="200" y="180" font-family="sans-serif" font-size="64" fill="#4ade80" text-anchor="middle">',
-                unicode"🏆",
-                '</text>',
-                '<text x="200" y="300" font-family="sans-serif" font-size="28" fill="#ffffff" text-anchor="middle" font-weight="bold">',
-                name,
-                '</text>',
-                '<text x="200" y="340" font-family="sans-serif" font-size="18" fill="#9ca3af" text-anchor="middle">Level ',
-                level.toString(),
-                '</text></svg>'
+                '<rect width="400" height="400" fill="#f0e7d4"/>',
+                '<rect x="14" y="14" width="372" height="372" rx="14" fill="#fbf7ec" stroke="#c4b48f" stroke-width="2"/>',
+                '<rect x="48" y="46" width="304" height="3" fill="#a87c1e"/>',
+                '<circle cx="200" cy="168" r="88" fill="#fbf7ec" stroke="#a87c1e" stroke-width="9"/>',
+                '<circle cx="200" cy="168" r="72" fill="none" stroke="#c89a36" stroke-width="2"/>',
+                '<path d="M200 120 211 153 246 153 218 174 228 207 200 187 172 207 182 174 154 153 189 153 Z" fill="#a87c1e" stroke="#7e5a13" stroke-width="2" stroke-linejoin="round"/>'
             )
         );
+
+        // Level digit in the medal + badge name + caption.
+        string memory bottom = string(
+            abi.encodePacked(
+                '<text x="200" y="178" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#fdf8ec" text-anchor="middle">', lvl, '</text>',
+                '<text x="200" y="306" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#1c1813" text-anchor="middle">', name, '</text>',
+                '<text x="200" y="338" font-family="monospace" font-size="15" letter-spacing="3" fill="#6a6051" text-anchor="middle">LEVEL ', lvl, '</text>',
+                '<text x="200" y="372" font-family="monospace" font-size="11" letter-spacing="4" fill="#a87c1e" text-anchor="middle">CAMPUS MINT - SCT</text>',
+                '</svg>'
+            )
+        );
+
+        return string(abi.encodePacked(top, bottom));
     }
 }

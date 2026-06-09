@@ -4,6 +4,7 @@ import addresses from "./contracts/addresses.json";
 import successTokenAbi from "./contracts/SuccessToken.abi.json";
 import rewardManagerAbi from "./contracts/RewardManager.abi.json";
 import achievementBadgeAbi from "./contracts/AchievementBadge.abi.json";
+import { uploadToIPFS, ipfsConfigured, ipfsUrl, looksLikeCid } from "./ipfs";
 
 const EXPECTED_CHAIN_ID = BigInt(addresses.chainId);
 const NETWORK_NAME =
@@ -23,6 +24,20 @@ function shortAddr(addr) {
   return addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "";
 }
 
+// Render an on-chain activity reference: a clickable IPFS link when it's a CID,
+// otherwise plain text.
+function RefCell({ value }) {
+  if (looksLikeCid(value)) {
+    const clean = value.replace(/^ipfs:\/\//, "");
+    return (
+      <a href={ipfsUrl(value)} target="_blank" rel="noreferrer" className="text-brass underline decoration-dotted underline-offset-2 hover:text-ink">
+        {clean.slice(0, 8)}…{clean.slice(-4)}
+      </a>
+    );
+  }
+  return <span className="text-ink font-medium">{value}</span>;
+}
+
 // Query a contract event over [fromBlock, latest] in RPC-safe chunks.
 async function queryLogsChunked(contract, filter, provider, fromBlock) {
   const latest = await provider.getBlockNumber();
@@ -39,6 +54,25 @@ async function queryLogsChunked(contract, filter, provider, fromBlock) {
   }
   return all;
 }
+
+// ─── tiny inline icon set (stroke = currentColor) ────────────────────────────
+const Icon = {
+  cap: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M2 8.5 12 4l10 4.5-10 4.5L2 8.5Z" /><path d="M6 10.5v4.2c0 1.3 2.7 2.8 6 2.8s6-1.5 6-2.8v-4.2" /><path d="M22 8.5v5" />
+    </svg>
+  ),
+  quill: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M20 4C12 5 7.5 9.5 5 17l2 2c7.5-2.5 12-7 13-15Z" /><path d="M5 19c2-3 5-5 9-6" /><path d="M3 21l2-2" />
+    </svg>
+  ),
+  gear: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <circle cx="12" cy="12" r="3.2" /><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" />
+    </svg>
+  ),
+};
 
 // ─── Sub-panels ─────────────────────────────────────────────────────────────
 
@@ -105,32 +139,38 @@ function StudentPanel({ account, provider }) {
 
   return (
     <div className="space-y-6">
-      {/* Balance card */}
-      <div className="rounded-2xl bg-[#111827] border border-[#374151] p-6">
-        <p className="text-sm text-[#9ca3af] mb-1">Your SCT Balance</p>
-        <p className="text-5xl font-bold text-[#4ade80]">{balance} <span className="text-2xl text-[#9ca3af]">SCT</span></p>
-        <p className="text-xs text-[#6b7280] mt-2 font-mono">{account}</p>
+      {/* Balance — minted-coin hero */}
+      <div className="paper paper--ruled p-7 rise" style={{ animationDelay: "0.02s" }}>
+        <p className="eyebrow mb-3">Token of Account · Balance</p>
+        <div className="flex items-end gap-3">
+          <span className="display text-7xl font-semibold leading-none text-ink tabular-nums">{balance}</span>
+          <span className="display text-2xl text-brass mb-1">SCT</span>
+        </div>
+        <p className="mt-4 font-mono text-xs text-ink-soft break-all">{account}</p>
       </div>
 
       {/* Achievement Badges */}
-      <div className="rounded-2xl bg-[#111827] border border-[#374151] p-6">
-        <h2 className="text-base font-semibold text-white mb-1">Achievement Badges</h2>
-        <p className="text-xs text-[#6b7280] mb-4">ERC-721 NFTs awarded at 50 / 100 / 200 SCT milestones</p>
+      <div className="paper p-6 rise" style={{ animationDelay: "0.08s" }}>
+        <div className="flex items-baseline justify-between mb-1">
+          <h2 className="display text-xl font-semibold text-ink">Hall of Honors</h2>
+          <span className="eyebrow">ERC-721</span>
+        </div>
+        <p className="text-sm text-ink-soft mb-5">Sealed at the 50 · 100 · 200 SCT milestones.</p>
         {loading ? (
-          <p className="text-[#9ca3af] text-sm">Loading…</p>
+          <p className="text-sm text-ink-soft font-mono">Reading the ledger…</p>
         ) : badges.length === 0 ? (
-          <p className="text-[#9ca3af] text-sm">No badges yet. Earn 50 SCT to unlock your first badge.</p>
+          <p className="text-sm text-ink-soft">No honors yet — earn 50 SCT to claim your first seal.</p>
         ) : (
           <div className="grid grid-cols-3 gap-4">
             {badges.map((b) => (
-              <div key={b.tokenId} className="rounded-xl border border-[#374151] overflow-hidden bg-[#0f1117] flex flex-col items-center p-3 gap-2">
+              <div key={b.tokenId} className="trophy flex flex-col items-center gap-2">
                 {b.svg ? (
-                  <img src={b.svg} alt={b.name} className="w-full rounded-lg" />
+                  <img src={b.svg} alt={b.name} className="w-full rounded-md" />
                 ) : (
-                  <div className="w-full aspect-square flex items-center justify-center text-4xl bg-[#1f2937] rounded-lg">🏆</div>
+                  <div className="w-full aspect-square grid place-items-center text-4xl bg-parchment-3 rounded-md text-brass">★</div>
                 )}
-                <p className="text-xs font-semibold text-white text-center">{b.name}</p>
-                <p className="text-xs text-[#6b7280]">Level {b.level} · #{b.tokenId}</p>
+                <p className="display text-sm font-semibold text-ink text-center leading-tight">{b.name}</p>
+                <p className="font-mono text-[0.65rem] text-ink-soft">L{b.level} · #{b.tokenId}</p>
               </div>
             ))}
           </div>
@@ -138,29 +178,24 @@ function StudentPanel({ account, provider }) {
       </div>
 
       {/* Activity history */}
-      <div className="rounded-2xl bg-[#111827] border border-[#374151] p-6">
-        <h2 className="text-base font-semibold text-white mb-4">Activity History</h2>
+      <div className="paper p-6 rise" style={{ animationDelay: "0.14s" }}>
+        <h2 className="display text-xl font-semibold text-ink mb-4">Register of Activities</h2>
         {loading ? (
-          <p className="text-[#9ca3af] text-sm">Loading…</p>
+          <p className="text-sm text-ink-soft font-mono">Reading the ledger…</p>
         ) : history.length === 0 ? (
-          <p className="text-[#9ca3af] text-sm">No activities yet. Complete a campus activity to earn tokens.</p>
+          <p className="text-sm text-ink-soft">No entries yet — complete a campus activity to earn tokens.</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="ledger">
             <thead>
-              <tr className="text-left text-[#6b7280] border-b border-[#374151]">
-                <th className="pb-2">Activity</th>
-                <th className="pb-2">Amount</th>
-                <th className="pb-2">Instructor</th>
-                <th className="pb-2">Block</th>
-              </tr>
+              <tr><th>Activity</th><th>Amount</th><th>Instructor</th><th>Block</th></tr>
             </thead>
             <tbody>
               {history.map((h, i) => (
-                <tr key={i} className="border-b border-[#1f2937]">
-                  <td className="py-2 text-white">{h.ref}</td>
-                  <td className="py-2 text-[#4ade80] font-semibold">+{h.amount} SCT</td>
-                  <td className="py-2 text-[#9ca3af] font-mono">{h.instructor}</td>
-                  <td className="py-2 text-[#6b7280]">#{h.block}</td>
+                <tr key={i}>
+                  <td><RefCell value={h.ref} /></td>
+                  <td className="text-forest font-mono font-semibold">+{h.amount}</td>
+                  <td className="text-ink-soft font-mono">{h.instructor}</td>
+                  <td className="text-ink-soft font-mono">#{h.block}</td>
                 </tr>
               ))}
             </tbody>
@@ -178,6 +213,24 @@ function InstructorPanel({ signer, provider }) {
   const [status, setStatus] = useState(null); // {type: 'ok'|'err'|'pending', msg}
   const [busy, setBusy] = useState(false);
   const [recent, setRecent] = useState([]);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploading(true);
+      setStatus({ type: "pending", msg: `Pinning ${file.name} to IPFS…` });
+      const cid = await uploadToIPFS(file);
+      setActivityRef(cid);
+      setStatus({ type: "ok", msg: `Pinned to IPFS · CID ${cid.slice(0, 10)}…` });
+    } catch (err) {
+      setStatus({ type: "err", msg: err?.message || "IPFS upload failed" });
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
 
   const loadRecent = useCallback(async () => {
     if (!provider) return;
@@ -206,81 +259,74 @@ function InstructorPanel({ signer, provider }) {
       const tx = await manager.approveActivity(student, ethers.parseEther(amount), activityRef.trim());
       setStatus({ type: "pending", msg: "Mining… " + tx.hash.slice(0, 12) + "…" });
       await tx.wait();
-      setStatus({ type: "ok", msg: `✅ Minted ${amount} SCT to ${shortAddr(student)}` });
+      setStatus({ type: "ok", msg: `Minted ${amount} SCT to ${shortAddr(student)}` });
       setStudent(""); setActivityRef("");
       loadRecent();
     } catch (err) {
       const msg = err?.reason || err?.shortMessage || err?.message || "Transaction failed";
-      setStatus({ type: "err", msg: "❌ " + msg });
+      setStatus({ type: "err", msg });
     } finally { setBusy(false); }
   };
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-[#111827] border border-[#374151] p-6">
-        <h2 className="text-base font-semibold text-white mb-5">Approve Student Activity</h2>
+      <div className="paper paper--ruled p-7 rise" style={{ animationDelay: "0.02s" }}>
+        <p className="eyebrow mb-1">Instructor Endorsement</p>
+        <h2 className="display text-2xl font-semibold text-ink mb-5">Approve &amp; Mint Award</h2>
         <form onSubmit={approve} className="space-y-4">
           <div>
-            <label className="block text-xs text-[#9ca3af] mb-1">Student wallet address</label>
-            <input
-              value={student}
-              onChange={(e) => setStudent(e.target.value)}
-              placeholder="0x…"
-              className="w-full bg-[#0f1117] border border-[#374151] rounded-xl px-4 py-3 text-sm text-white placeholder-[#4b5563] focus:outline-none focus:border-[#6366f1]"
-            />
+            <label className="label">Student wallet address</label>
+            <input value={student} onChange={(e) => setStudent(e.target.value)} placeholder="0x…" className="field" />
+          </div>
+          <div>
+            <label className="label">Evidence file → IPFS</label>
+            {ipfsConfigured() ? (
+              <label className={`flex items-center gap-3 cursor-pointer field ${uploading ? "opacity-60" : ""}`}>
+                <span className="btn btn-ghost px-3 py-1 text-xs">{uploading ? "Pinning…" : "Choose file"}</span>
+                <span className="text-xs text-ink-soft font-sans">
+                  {activityRef && looksLikeCid(activityRef) ? `Pinned · ${activityRef.slice(0, 12)}…` : "Upload proof — CID fills the reference below"}
+                </span>
+                <input type="file" className="hidden" onChange={handleFile} disabled={uploading} />
+              </label>
+            ) : (
+              <p className="text-xs text-ink-soft font-mono">IPFS upload off — set VITE_PINATA_JWT to enable. Enter a reference manually below.</p>
+            )}
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-xs text-[#9ca3af] mb-1">Amount (SCT)</label>
-              <input
-                type="number" min="1" value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full bg-[#0f1117] border border-[#374151] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#6366f1]"
-              />
+              <label className="label">Amount (SCT)</label>
+              <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="field" />
             </div>
             <div className="flex-1">
-              <label className="block text-xs text-[#9ca3af] mb-1">Activity reference / CID</label>
-              <input
-                value={activityRef}
-                onChange={(e) => setActivityRef(e.target.value)}
-                placeholder="event-001"
-                className="w-full bg-[#0f1117] border border-[#374151] rounded-xl px-4 py-3 text-sm text-white placeholder-[#4b5563] focus:outline-none focus:border-[#6366f1]"
-              />
+              <label className="label">Activity ref / CID</label>
+              <input value={activityRef} onChange={(e) => setActivityRef(e.target.value)} placeholder="event-001 or IPFS CID" className="field" />
             </div>
           </div>
-          <button
-            type="submit" disabled={busy}
-            className="w-full bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
-          >
-            {busy ? "Processing…" : "Approve & Mint"}
+          <button type="submit" disabled={busy} className="btn btn-primary w-full py-3">
+            {busy ? "Processing…" : "Seal Approval & Mint"}
           </button>
         </form>
         {status && (
-          <div className={`mt-4 rounded-xl px-4 py-3 text-sm ${
-            status.type === "ok" ? "bg-green-900/30 text-[#4ade80]" :
-            status.type === "err" ? "bg-red-900/30 text-[#f87171]" :
-            "bg-[#1f2937] text-[#9ca3af]"
-          }`}>{status.msg}</div>
+          <div className={`mt-4 banner ${status.type === "ok" ? "banner-ok" : status.type === "err" ? "banner-err" : "banner-wait"}`}>
+            {status.msg}
+          </div>
         )}
       </div>
 
       {recent.length > 0 && (
-        <div className="rounded-2xl bg-[#111827] border border-[#374151] p-6">
-          <h2 className="text-base font-semibold text-white mb-4">Recent Approvals</h2>
-          <table className="w-full text-sm">
+        <div className="paper p-6 rise" style={{ animationDelay: "0.1s" }}>
+          <h2 className="display text-xl font-semibold text-ink mb-4">Recent Endorsements</h2>
+          <table className="ledger">
             <thead>
-              <tr className="text-left text-[#6b7280] border-b border-[#374151]">
-                <th className="pb-2">Activity</th><th className="pb-2">Student</th>
-                <th className="pb-2">Amount</th><th className="pb-2">Block</th>
-              </tr>
+              <tr><th>Activity</th><th>Student</th><th>Amount</th><th>Block</th></tr>
             </thead>
             <tbody>
               {recent.map((r, i) => (
-                <tr key={i} className="border-b border-[#1f2937]">
-                  <td className="py-2 text-white">{r.ref}</td>
-                  <td className="py-2 font-mono text-[#9ca3af]">{r.student}</td>
-                  <td className="py-2 text-[#4ade80] font-semibold">{r.amount} SCT</td>
-                  <td className="py-2 text-[#6b7280]">#{r.block}</td>
+                <tr key={i}>
+                  <td><RefCell value={r.ref} /></td>
+                  <td className="font-mono text-ink-soft">{r.student}</td>
+                  <td className="text-forest font-mono font-semibold">{r.amount}</td>
+                  <td className="text-ink-soft font-mono">#{r.block}</td>
                 </tr>
               ))}
             </tbody>
@@ -313,10 +359,10 @@ function AdminPanel({ signer, provider, account }) {
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, signer);
       const tx = await manager.grantRole(INSTRUCTOR_ROLE, target);
       await tx.wait();
-      setStatus({ type: "ok", msg: `✅ INSTRUCTOR_ROLE granted to ${shortAddr(target)}` });
+      setStatus({ type: "ok", msg: `INSTRUCTOR_ROLE granted to ${shortAddr(target)}` });
       setIsInstructor(true);
     } catch (err) {
-      setStatus({ type: "err", msg: "❌ " + (err?.reason || err?.shortMessage || err?.message) });
+      setStatus({ type: "err", msg: err?.reason || err?.shortMessage || err?.message });
     } finally { setBusy(false); }
   };
 
@@ -327,66 +373,55 @@ function AdminPanel({ signer, provider, account }) {
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, signer);
       const tx = await manager.revokeRole(INSTRUCTOR_ROLE, target);
       await tx.wait();
-      setStatus({ type: "ok", msg: `✅ INSTRUCTOR_ROLE revoked from ${shortAddr(target)}` });
+      setStatus({ type: "ok", msg: `INSTRUCTOR_ROLE revoked from ${shortAddr(target)}` });
       setIsInstructor(false);
     } catch (err) {
-      setStatus({ type: "err", msg: "❌ " + (err?.reason || err?.shortMessage || err?.message) });
+      setStatus({ type: "err", msg: err?.reason || err?.shortMessage || err?.message });
     } finally { setBusy(false); }
   };
 
+  const rows = [
+    { label: "SuccessToken (SCT)", addr: addresses.successToken },
+    { label: "RewardManager", addr: addresses.rewardManager },
+    addresses.achievementBadge ? { label: "AchievementBadge", addr: addresses.achievementBadge } : null,
+    { label: "Your account (Admin)", addr: account },
+  ].filter(Boolean);
+
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-[#111827] border border-[#374151] p-6">
-        <h2 className="text-base font-semibold text-white mb-1">System Information</h2>
-        <p className="text-xs text-[#6b7280] mb-5">Contract addresses on {NETWORK_NAME} (chainId {addresses.chainId})</p>
-        <div className="space-y-3">
-          {[
-            { label: "SuccessToken (SCT)", addr: addresses.successToken },
-            { label: "RewardManager", addr: addresses.rewardManager },
-            { label: "Your account (Admin)", addr: account },
-          ].map(({ label, addr }) => (
-            <div key={label} className="flex justify-between items-center py-2 border-b border-[#1f2937]">
-              <span className="text-xs text-[#9ca3af]">{label}</span>
-              <span className="text-xs font-mono text-white">{addr}</span>
+      <div className="paper paper--ruled p-7 rise" style={{ animationDelay: "0.02s" }}>
+        <p className="eyebrow mb-1">Charter · On-Chain Registry</p>
+        <h2 className="display text-2xl font-semibold text-ink mb-1">System Information</h2>
+        <p className="text-sm text-ink-soft mb-5">Deployed on {NETWORK_NAME} · chainId {addresses.chainId}</p>
+        <div>
+          {rows.map(({ label, addr }) => (
+            <div key={label} className="flex justify-between items-center gap-4 py-2.5 border-b border-dashed border-rule last:border-0">
+              <span className="text-sm text-ink-soft shrink-0">{label}</span>
+              <span className="font-mono text-xs text-ink break-all text-right">{addr}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="rounded-2xl bg-[#111827] border border-[#374151] p-6">
-        <h2 className="text-base font-semibold text-white mb-5">Instructor Role Management</h2>
+      <div className="paper p-6 rise" style={{ animationDelay: "0.1s" }}>
+        <h2 className="display text-xl font-semibold text-ink mb-5">Instructor Role Management</h2>
         <div className="flex gap-3 mb-4">
-          <input
-            value={target}
-            onChange={(e) => { setTarget(e.target.value); setIsInstructor(null); }}
-            placeholder="0x… wallet address"
-            className="flex-1 bg-[#0f1117] border border-[#374151] rounded-xl px-4 py-3 text-sm text-white placeholder-[#4b5563] focus:outline-none focus:border-[#6366f1]"
-          />
-          <button onClick={checkRole} className="px-4 py-3 rounded-xl border border-[#374151] text-sm text-[#9ca3af] hover:text-white hover:border-[#6366f1] transition-colors">
-            Check
-          </button>
+          <input value={target} onChange={(e) => { setTarget(e.target.value); setIsInstructor(null); }} placeholder="0x… wallet address" className="field flex-1" />
+          <button onClick={checkRole} className="btn btn-ghost px-5">Check</button>
         </div>
         {isInstructor !== null && (
-          <p className={`text-sm mb-4 ${isInstructor ? "text-[#4ade80]" : "text-[#f87171]"}`}>
-            {isInstructor ? "✅ Has INSTRUCTOR_ROLE" : "❌ Does NOT have INSTRUCTOR_ROLE"}
+          <p className={`text-sm font-mono mb-4 ${isInstructor ? "text-forest" : "text-oxblood"}`}>
+            {isInstructor ? "✓ Holds INSTRUCTOR_ROLE" : "✕ Does not hold INSTRUCTOR_ROLE"}
           </p>
         )}
         <div className="flex gap-3">
-          <button onClick={grantRole} disabled={busy}
-            className="flex-1 bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
-            Grant Role
-          </button>
-          <button onClick={revokeRole} disabled={busy}
-            className="flex-1 bg-transparent border border-[#f87171] hover:bg-red-900/20 disabled:opacity-50 text-[#f87171] font-semibold py-3 rounded-xl transition-colors text-sm">
-            Revoke Role
-          </button>
+          <button onClick={grantRole} disabled={busy} className="btn btn-primary flex-1 py-3 text-sm">Grant Role</button>
+          <button onClick={revokeRole} disabled={busy} className="btn btn-danger flex-1 py-3 text-sm">Revoke Role</button>
         </div>
         {status && (
-          <div className={`mt-4 rounded-xl px-4 py-3 text-sm ${
-            status.type === "ok" ? "bg-green-900/30 text-[#4ade80]" :
-            status.type === "err" ? "bg-red-900/30 text-[#f87171]" :
-            "bg-[#1f2937] text-[#9ca3af]"
-          }`}>{status.msg}</div>
+          <div className={`mt-4 banner ${status.type === "ok" ? "banner-ok" : status.type === "err" ? "banner-err" : "banner-wait"}`}>
+            {status.msg}
+          </div>
         )}
       </div>
     </div>
@@ -394,7 +429,11 @@ function AdminPanel({ signer, provider, account }) {
 }
 
 // ─── Main App ────────────────────────────────────────────────────────────────
-const TABS = ["Student", "Instructor", "Admin"];
+const TABS = [
+  { id: "Student", icon: Icon.cap },
+  { id: "Instructor", icon: Icon.quill },
+  { id: "Admin", icon: Icon.gear },
+];
 
 export default function App() {
   const [account, setAccount] = useState(null);
@@ -422,57 +461,53 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-white">
+    <div className="relative min-h-screen" style={{ zIndex: 1 }}>
       {/* Header */}
-      <header className="border-b border-[#374151] bg-[#0f1117]/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🎓</span>
+      <header className="sticky top-0 z-10 border-b border-rule-strong" style={{ background: "color-mix(in srgb, var(--color-parchment) 88%, transparent)", backdropFilter: "blur(8px)" }}>
+        <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <span className="seal text-lg">SCT</span>
             <div>
-              <p className="font-bold text-white leading-none">Success Token</p>
-              <p className="text-xs text-[#6b7280]">Token-Based Success Award System</p>
+              <p className="display text-lg font-semibold text-ink leading-tight">Campus Mint</p>
+              <p className="eyebrow">Token-Based Success Award</p>
             </div>
           </div>
           {account ? (
-            <div className="flex items-center gap-2 bg-[#1f2937] rounded-xl px-4 py-2">
-              <span className="w-2 h-2 rounded-full bg-[#4ade80]" />
-              <span className="text-xs font-mono text-[#9ca3af]">{shortAddr(account)}</span>
+            <div className="flex items-center gap-2.5 paper px-4 py-2">
+              <span className="w-2 h-2 rounded-full bg-forest" />
+              <span className="font-mono text-xs text-ink-soft">{shortAddr(account)}</span>
             </div>
           ) : (
-            <button onClick={connect}
-              className="bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">
-              Connect MetaMask
-            </button>
+            <button onClick={connect} className="btn btn-primary px-5 py-2.5 text-sm">Connect MetaMask</button>
           )}
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
+      <main className="max-w-4xl mx-auto px-6 py-10">
         {!account ? (
-          <div className="text-center py-24">
-            <p className="text-6xl mb-6">🏛️</p>
-            <h1 className="text-2xl font-bold text-white mb-3">Campus Blockchain Rewards</h1>
-            <p className="text-[#9ca3af] mb-8 max-w-md mx-auto">Connect your MetaMask wallet to earn and manage Success Tokens for campus activities.</p>
-            <button onClick={connect}
-              className="bg-[#6366f1] hover:bg-[#4f46e5] text-white font-semibold px-8 py-3 rounded-xl transition-colors">
-              Connect MetaMask
-            </button>
+          <div className="text-center py-20 rise">
+            <div className="seal mx-auto mb-7" style={{ width: "5rem", height: "5rem", fontSize: "1.6rem" }}>SCT</div>
+            <p className="eyebrow mb-4">Chartered on {NETWORK_NAME}</p>
+            <h1 className="display text-5xl font-semibold text-ink mb-4 leading-tight max-w-xl mx-auto">
+              Earn your honors,<br />minted on-chain.
+            </h1>
+            <p className="text-ink-soft mb-9 max-w-md mx-auto leading-relaxed">
+              A blockchain reward ledger for campus engagement. Connect your wallet to claim Success Tokens and sealed achievement honors.
+            </p>
+            <button onClick={connect} className="btn btn-primary px-8 py-3.5">Connect MetaMask</button>
           </div>
         ) : (
           <>
             {!chainOk && (
-              <div className="mb-6 rounded-xl bg-yellow-900/30 border border-yellow-700/50 px-4 py-3 text-sm text-[#fbbf24]">
-                ⚠️ Wrong network — switch MetaMask to <strong>{NETWORK_NAME}</strong> (chainId {addresses.chainId})
+              <div className="mb-6 banner banner-warn rise">
+                Wrong network — switch MetaMask to <strong>{NETWORK_NAME}</strong> (chainId {addresses.chainId})
               </div>
             )}
-            {/* Tab bar */}
-            <div className="flex bg-[#111827] rounded-xl p-1 mb-6 border border-[#374151]">
-              {TABS.map((t) => (
-                <button key={t} onClick={() => setTab(t)}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                    tab === t ? "bg-[#6366f1] text-white" : "text-[#9ca3af] hover:text-white"
-                  }`}>
-                  {t === "Student" ? "🎓 " : t === "Instructor" ? "✏️ " : "⚙️ "}{t}
+            {/* Tab bar — ledger tabs */}
+            <div className="flex items-center gap-7 mb-8 border-b border-rule-strong rise">
+              {TABS.map(({ id, icon: TabIcon }) => (
+                <button key={id} className="tab flex items-center gap-2" data-active={tab === id} onClick={() => setTab(id)}>
+                  <TabIcon className="w-4 h-4" />{id}
                 </button>
               ))}
             </div>
@@ -483,6 +518,10 @@ export default function App() {
           </>
         )}
       </main>
+
+      <footer className="max-w-4xl mx-auto px-6 pb-10 pt-4">
+        <p className="eyebrow text-center opacity-70">Sealed on-chain · Polygon · {NETWORK_NAME}</p>
+      </footer>
     </div>
   );
 }
