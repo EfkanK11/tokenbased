@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import addresses from "./contracts/addresses.json";
 import successTokenAbi from "./contracts/SuccessToken.abi.json";
 import rewardManagerAbi from "./contracts/RewardManager.abi.json";
+import achievementBadgeAbi from "./contracts/AchievementBadge.abi.json";
 
 const EXPECTED_CHAIN_ID = BigInt(addresses.chainId);
 const NETWORK_NAME =
@@ -44,6 +45,7 @@ async function queryLogsChunked(contract, filter, provider, fromBlock) {
 function StudentPanel({ account, provider }) {
   const [balance, setBalance] = useState("0");
   const [history, setHistory] = useState([]);
+  const [badges, setBadges] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -65,6 +67,36 @@ function StudentPanel({ account, provider }) {
         block: e.blockNumber,
       }));
       setHistory(parsed.reverse());
+
+      // Fetch earned badges via BadgeMinted events for this student
+      if (addresses.achievementBadge) {
+        const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, provider);
+        const badgeEvents = await queryLogsChunked(
+          badge,
+          badge.filters.BadgeMinted(account),
+          provider,
+          addresses.deployBlock
+        );
+        const parsedBadges = await Promise.all(
+          badgeEvents.map(async (e) => {
+            const tokenId = e.args.tokenId;
+            let svg = null;
+            try {
+              const uri = await badge.tokenURI(tokenId);
+              // uri = data:application/json;base64,...
+              const json = JSON.parse(atob(uri.split(",")[1]));
+              svg = json.image; // data:image/svg+xml;base64,...
+            } catch (_) {}
+            return {
+              tokenId: tokenId.toString(),
+              level: e.args.level.toString(),
+              name: e.args.name,
+              svg,
+            };
+          })
+        );
+        setBadges(parsedBadges);
+      }
     } catch (_) {}
     setLoading(false);
   }, [provider, account]);
@@ -78,6 +110,31 @@ function StudentPanel({ account, provider }) {
         <p className="text-sm text-[#9ca3af] mb-1">Your SCT Balance</p>
         <p className="text-5xl font-bold text-[#4ade80]">{balance} <span className="text-2xl text-[#9ca3af]">SCT</span></p>
         <p className="text-xs text-[#6b7280] mt-2 font-mono">{account}</p>
+      </div>
+
+      {/* Achievement Badges */}
+      <div className="rounded-2xl bg-[#111827] border border-[#374151] p-6">
+        <h2 className="text-base font-semibold text-white mb-1">Achievement Badges</h2>
+        <p className="text-xs text-[#6b7280] mb-4">ERC-721 NFTs awarded at 50 / 100 / 200 SCT milestones</p>
+        {loading ? (
+          <p className="text-[#9ca3af] text-sm">Loading…</p>
+        ) : badges.length === 0 ? (
+          <p className="text-[#9ca3af] text-sm">No badges yet. Earn 50 SCT to unlock your first badge.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-4">
+            {badges.map((b) => (
+              <div key={b.tokenId} className="rounded-xl border border-[#374151] overflow-hidden bg-[#0f1117] flex flex-col items-center p-3 gap-2">
+                {b.svg ? (
+                  <img src={b.svg} alt={b.name} className="w-full rounded-lg" />
+                ) : (
+                  <div className="w-full aspect-square flex items-center justify-center text-4xl bg-[#1f2937] rounded-lg">🏆</div>
+                )}
+                <p className="text-xs font-semibold text-white text-center">{b.name}</p>
+                <p className="text-xs text-[#6b7280]">Level {b.level} · #{b.tokenId}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Activity history */}
