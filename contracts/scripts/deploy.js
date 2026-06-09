@@ -29,27 +29,47 @@ async function main() {
   const managerAddress = await rewardManager.getAddress();
   console.log("RewardManager deployed to:", managerAddress);
 
-  // 3. Transfer token ownership to RewardManager
+  // 3. Deploy AchievementBadge (deployer is temporary owner)
+  const AchievementBadge = await ethers.getContractFactory("AchievementBadge");
+  const achievementBadge = await AchievementBadge.deploy(deployer.address);
+  await achievementBadge.waitForDeployment();
+  const badgeAddress = await achievementBadge.getAddress();
+  console.log("AchievementBadge deployed to:", badgeAddress);
+
+  // 4. Transfer token ownership to RewardManager
   const tx1 = await successToken.transferOwnership(managerAddress);
   await tx1.wait();
   console.log("\nToken ownership transferred to RewardManager");
 
-  // 4. Grant INSTRUCTOR_ROLE to deployer
+  // 5. Transfer badge ownership to RewardManager
+  const tx2 = await achievementBadge.transferOwnership(managerAddress);
+  await tx2.wait();
+  console.log("Badge ownership transferred to RewardManager");
+
+  // 6. Wire the badge contract into RewardManager
+  const tx3 = await rewardManager.setAchievementBadge(badgeAddress);
+  await tx3.wait();
+  console.log("AchievementBadge wired into RewardManager");
+
+  // 7. Grant INSTRUCTOR_ROLE to deployer
   const INSTRUCTOR_ROLE = ethers.keccak256(
     ethers.toUtf8Bytes("INSTRUCTOR_ROLE")
   );
-  const tx2 = await rewardManager.grantRole(INSTRUCTOR_ROLE, deployer.address);
-  await tx2.wait();
+  const tx4 = await rewardManager.grantRole(INSTRUCTOR_ROLE, deployer.address);
+  await tx4.wait();
   console.log("INSTRUCTOR_ROLE granted to deployer:", deployer.address);
 
-  // 5. Save deployment info
+  // 8. Save deployment info
   const chainId = (await ethers.provider.getNetwork()).chainId;
+  const deployBlock = await ethers.provider.getBlockNumber();
   const deployment = {
     network: network.name,
     chainId: Number(chainId),
     successToken: tokenAddress,
     rewardManager: managerAddress,
+    achievementBadge: badgeAddress,
     admin: deployer.address,
+    deployBlock,
     deployedAt: new Date().toISOString(),
   };
 
@@ -67,6 +87,7 @@ async function main() {
     console.log("\n--- VERIFY COMMANDS (run after deploy) ---");
     console.log(`npx hardhat verify --network ${network.name} ${tokenAddress} "${deployer.address}"`);
     console.log(`npx hardhat verify --network ${network.name} ${managerAddress} "${tokenAddress}" "${deployer.address}"`);
+    console.log(`npx hardhat verify --network ${network.name} ${badgeAddress} "${deployer.address}"`);
   }
 }
 

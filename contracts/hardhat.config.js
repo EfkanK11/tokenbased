@@ -9,8 +9,9 @@ const AMOY_RPC_URL = process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.techn
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: {
-    version: "0.8.20",
+    version: "0.8.24",
     settings: {
+      evmVersion: "cancun",
       optimizer: {
         enabled: true,
         runs: 200,

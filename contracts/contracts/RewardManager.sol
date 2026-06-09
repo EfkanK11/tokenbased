@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./SuccessToken.sol";
+import "./AchievementBadge.sol";
 
 /**
  * @title RewardManager
@@ -28,6 +29,28 @@ contract RewardManager is AccessControl {
     /// @notice The SuccessToken contract this manager controls
     SuccessToken public successToken;
 
+    /// @notice The AchievementBadge (ERC-721) contract this manager mints from.
+    ///         Optional: badge minting is skipped while this is unset (address 0).
+    AchievementBadge public achievementBadge;
+
+    /// @notice Cumulative SCT ever earned by a student (never decreases, even
+    ///         if tokens are later transferred away). Used for badge milestones.
+    mapping(address => uint256) public totalEarned;
+
+    /// @notice Whether a student has already been awarded the badge at a given
+    ///         milestone index (into the `milestones` array).
+    mapping(address => mapping(uint256 => bool)) public badgeAwarded;
+
+    /// @dev A badge milestone: earn `threshold` cumulative SCT to unlock `name`.
+    struct Milestone {
+        uint256 threshold; // in wei (18 decimals)
+        uint256 level;     // badge level (1, 2, 3, …)
+        string name;       // human-readable badge name
+    }
+
+    /// @notice Ordered list of badge milestones (ascending thresholds).
+    Milestone[] public milestones;
+
     // ─── Events ───────────────────────────────────────────────────────────────
 
     /**
@@ -44,6 +67,23 @@ contract RewardManager is AccessControl {
         string activityRef
     );
 
+    /**
+     * @notice Emitted when a student is awarded an achievement badge.
+     * @param student        Address of the rewarded student.
+     * @param milestoneIndex Index into the `milestones` array.
+     * @param tokenId        Minted ERC-721 token id.
+     * @param name           Human-readable badge name.
+     */
+    event BadgeAwarded(
+        address indexed student,
+        uint256 indexed milestoneIndex,
+        uint256 tokenId,
+        string name
+    );
+
+    /// @notice Emitted when the admin sets / updates the badge contract.
+    event AchievementBadgeSet(address indexed badge);
+
     // ─── Constructor ──────────────────────────────────────────────────────────
 
     /**
@@ -59,6 +99,33 @@ contract RewardManager is AccessControl {
 
         // Grant DEFAULT_ADMIN_ROLE to the deployer / system admin
         _grantRole(DEFAULT_ADMIN_ROLE, adminAddress);
+
+        // Seed default badge milestones (ascending thresholds).
+        milestones.push(Milestone(50 ether, 1, "Active Member"));
+        milestones.push(Milestone(100 ether, 2, "Star Performer"));
+        milestones.push(Milestone(200 ether, 3, "Campus Legend"));
+    }
+
+    // ─── Admin: Badge Wiring ────────────────────────────────────────────────────
+
+    /**
+     * @notice Set (or update) the AchievementBadge contract used for milestones.
+     * @dev Caller must hold DEFAULT_ADMIN_ROLE. RewardManager must be the owner
+     *      of the badge contract for minting to succeed.
+     * @param badgeAddress Deployed AchievementBadge contract address.
+     */
+    function setAchievementBadge(address badgeAddress)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        require(badgeAddress != address(0), "RewardManager: zero badge address");
+        achievementBadge = AchievementBadge(badgeAddress);
+        emit AchievementBadgeSet(badgeAddress);
+    }
+
+    /// @notice Number of configured badge milestones.
+    function milestoneCount() external view returns (uint256) {
+        return milestones.length;
     }
 
     // ─── Core Logic ───────────────────────────────────────────────────────────
@@ -85,7 +152,38 @@ contract RewardManager is AccessControl {
         // Mint tokens → SuccessToken.mint() checks that caller is its owner
         successToken.mint(student, amount);
 
+        // Track lifetime earnings and award any newly-unlocked badges.
+        totalEarned[student] += amount;
+
         emit ActivityApproved(msg.sender, student, amount, activityRef);
+
+        _checkMilestones(student);
+    }
+
+    /**
+     * @dev Mint achievement badges for any milestone the student has newly
+     *      crossed. Skipped entirely if no badge contract is wired, and a
+     *      failed badge mint never blocks the core token reward.
+     * @param student Student whose cumulative earnings to evaluate.
+     */
+    function _checkMilestones(address student) internal {
+        if (address(achievementBadge) == address(0)) return;
+
+        uint256 earned = totalEarned[student];
+        uint256 count = milestones.length;
+
+        for (uint256 i = 0; i < count; i++) {
+            if (badgeAwarded[student][i]) continue;
+            if (earned < milestones[i].threshold) continue;
+
+            badgeAwarded[student][i] = true;
+            uint256 tokenId = achievementBadge.mint(
+                student,
+                milestones[i].level,
+                milestones[i].name
+            );
+            emit BadgeAwarded(student, i, tokenId, milestones[i].name);
+        }
     }
 
     // ─── View Helpers ─────────────────────────────────────────────────────────
