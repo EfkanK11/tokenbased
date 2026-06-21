@@ -1,10 +1,29 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ethers } from "ethers";
 import addresses from "./contracts/addresses.json";
 import successTokenAbi from "./contracts/SuccessToken.abi.json";
 import rewardManagerAbi from "./contracts/RewardManager.abi.json";
 import achievementBadgeAbi from "./contracts/AchievementBadge.abi.json";
 import { uploadToIPFS, ipfsConfigured, ipfsUrl, looksLikeCid } from "./ipfs";
+
+// ─── Animated count-up hook (no deps — pure rAF) ────────────────────────────
+function useCountUp(target, duration = 1200) {
+  const [value, setValue] = useState(0);
+  const started = useRef(false);
+  useEffect(() => {
+    if (target <= 0 || started.current) return;
+    started.current = true;
+    const start = performance.now();
+    const step = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(eased * target));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [target, duration]);
+  return value;
+}
 
 const EXPECTED_CHAIN_ID = BigInt(addresses.chainId);
 const NETWORK_NAME =
@@ -100,6 +119,59 @@ const STEPS = [
   { icon: Icon.cap, title: "Own", desc: "Tokens and badges land in the student's wallet — portable, verifiable, and theirs to keep." },
 ];
 
+// ─── Landing stats strip — reads chain without wallet ───────────────────────
+function StatsStrip() {
+  const [stats, setStats] = useState({ sct: 0, badges: 0, activities: 0 });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rpc = addresses.chainId === 31337
+          ? "http://127.0.0.1:8545"
+          : "https://rpc-amoy.polygon.technology";
+        const p = new ethers.JsonRpcProvider(rpc);
+        const token = new ethers.Contract(addresses.successToken, successTokenAbi, p);
+        const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, p);
+        const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, p);
+
+        const [supply, minted, events] = await Promise.all([
+          token.totalSupply(),
+          badge.totalMinted(),
+          queryLogsChunked(manager, manager.filters.ActivityApproved(), p, addresses.deployBlock),
+        ]);
+        setStats({
+          sct: Math.round(Number(ethers.formatEther(supply))),
+          badges: Number(minted),
+          activities: events.length,
+        });
+      } catch (_) {}
+    })();
+  }, []);
+
+  const sctDisplay = useCountUp(stats.sct);
+  const badgeDisplay = useCountUp(stats.badges);
+  const activityDisplay = useCountUp(stats.activities);
+
+  if (stats.sct === 0 && stats.badges === 0) return null;
+
+  return (
+    <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto pb-16 rise" style={{ animationDelay: "0.35s" }}>
+      {[
+        { value: sctDisplay, label: "SCT Minted", suffix: "" },
+        { value: badgeDisplay, label: "Badges Awarded", suffix: "" },
+        { value: activityDisplay, label: "Activities Approved", suffix: "" },
+      ].map((s) => (
+        <div key={s.label} className="paper p-5 text-center">
+          <p className="display text-3xl sm:text-4xl font-semibold text-brass tabular-nums balance-reveal">
+            {s.value}{s.suffix}
+          </p>
+          <p className="eyebrow mt-2">{s.label}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Sub-panels ─────────────────────────────────────────────────────────────
 
 function StudentPanel({ account, provider, refreshKey }) {
@@ -174,10 +246,14 @@ function StudentPanel({ account, provider, refreshKey }) {
       {/* Balance — minted-coin hero */}
       <div className="paper paper--ruled p-7 rise" style={{ animationDelay: "0.02s" }}>
         <p className="eyebrow mb-3">Token of Account · Balance</p>
-        <div className="flex items-end gap-3">
-          <span className="display text-6xl sm:text-7xl font-semibold leading-none text-ink tabular-nums">{balance}</span>
-          <span className="display text-2xl text-brass mb-1">SCT</span>
-        </div>
+        {loading ? (
+          <div className="skeleton h-16 w-52 sm:h-[4.5rem]" />
+        ) : (
+          <div className="flex items-end gap-3 balance-reveal">
+            <span className="display text-6xl sm:text-7xl font-semibold leading-none text-ink tabular-nums">{balance}</span>
+            <span className="display text-2xl text-brass mb-1">SCT</span>
+          </div>
+        )}
         <p className="mt-4 font-mono text-xs text-ink-soft break-all">{account}</p>
       </div>
 
@@ -189,7 +265,9 @@ function StudentPanel({ account, provider, refreshKey }) {
         </div>
         <p className="text-sm text-ink-soft mb-5">Sealed at the 50 · 100 · 200 SCT milestones.</p>
         {loading ? (
-          <p className="text-sm text-ink-soft font-mono">Reading the ledger…</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {[0, 1, 2].map((i) => <div key={i} className="skeleton rounded-lg" style={{ aspectRatio: "3 / 4" }} />)}
+          </div>
         ) : badges.length === 0 ? (
           <p className="text-sm text-ink-soft">No honors yet — earn 50 SCT to claim your first seal.</p>
         ) : (
@@ -213,7 +291,9 @@ function StudentPanel({ account, provider, refreshKey }) {
       <div className="paper p-6 rise" style={{ animationDelay: "0.14s" }}>
         <h2 className="display text-xl font-semibold text-ink mb-4">Register of Activities</h2>
         {loading ? (
-          <p className="text-sm text-ink-soft font-mono">Reading the ledger…</p>
+          <div className="space-y-3 pt-1">
+            {[0, 1, 2].map((i) => <div key={i} className="skeleton h-6 w-full" />)}
+          </div>
         ) : history.length === 0 ? (
           <p className="text-sm text-ink-soft">No entries yet — complete a campus activity to earn tokens.</p>
         ) : (
@@ -549,6 +629,9 @@ export default function App() {
               <button onClick={connect} className="btn btn-primary px-8 py-3.5">Connect MetaMask</button>
             </div>
 
+            {/* On-chain stats — live from blockchain */}
+            <StatsStrip />
+
             {/* How it works — Approve → Mint → Own */}
             <div className="pb-16">
               <p className="eyebrow text-center mb-7">How the ledger works</p>
@@ -588,9 +671,11 @@ export default function App() {
                 ))}
               </div>
 
-              {tab === "Student" && <StudentPanel account={account} provider={provider} refreshKey={refreshKey} />}
-              {tab === "Instructor" && <InstructorPanel signer={signer} provider={provider} refreshKey={refreshKey} onMinted={refresh} />}
-              {tab === "Admin" && <AdminPanel signer={signer} provider={provider} account={account} />}
+              <div key={tab} className="panel-enter">
+                {tab === "Student" && <StudentPanel account={account} provider={provider} refreshKey={refreshKey} />}
+                {tab === "Instructor" && <InstructorPanel signer={signer} provider={provider} refreshKey={refreshKey} onMinted={refresh} />}
+                {tab === "Admin" && <AdminPanel signer={signer} provider={provider} account={account} />}
+              </div>
             </>
           )
         )}

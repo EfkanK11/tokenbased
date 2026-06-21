@@ -173,6 +173,14 @@ body::before {
   border-radius: 8px;
   padding: 0.85rem;
   box-shadow: 0 10px 22px -18px rgba(40,32,16,0.6);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.trophy:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 32px -18px rgba(40,32,16,0.72);
+}
+@media (prefers-reduced-motion: reduce) {
+  .trophy:hover { transform: none; }
 }
 .trophy::after {
   content: "";
@@ -237,6 +245,26 @@ body::before {
   background: linear-gradient(90deg, var(--color-brass), var(--color-brass-bright));
 }
 
+/* ─── Skeleton loader (parchment shimmer) ───────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-parchment-3) 25%,
+    color-mix(in srgb, var(--color-rule) 45%, var(--color-parchment-3)) 50%,
+    var(--color-parchment-3) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 5px;
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
 /* ─── Step number chip (landing "how it works") ─────────────────────────────── */
 .step-num {
   display: grid;
@@ -258,7 +286,64 @@ body::before {
 }
 .rise { opacity: 0; animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
 
+/* ─── Tab content crossfade ────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.panel-enter { animation: fadeIn 0.28s ease-out both; }
+
+/* ─── Banner slide-in ──────────────────────────────────────────────────────── */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.banner { animation: slideIn 0.22s ease-out; }
+
+/* ─── Table row stagger ────────────────────────────────────────────────────── */
+@keyframes rowFade {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.ledger tbody tr {
+  animation: rowFade 0.3s ease-out both;
+}
+.ledger tbody tr:nth-child(1) { animation-delay: 0.04s; }
+.ledger tbody tr:nth-child(2) { animation-delay: 0.08s; }
+.ledger tbody tr:nth-child(3) { animation-delay: 0.12s; }
+.ledger tbody tr:nth-child(4) { animation-delay: 0.16s; }
+.ledger tbody tr:nth-child(5) { animation-delay: 0.20s; }
+
+/* ─── Button brass shimmer on press ────────────────────────────────────────── */
+.btn-primary { position: relative; overflow: hidden; }
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.4s ease;
+  pointer-events: none;
+}
+.btn-primary:active::after { transform: translateX(100%); }
+
+/* ─── Badge trophy hover glow ──────────────────────────────────────────────── */
+.trophy:hover::after {
+  border-color: color-mix(in srgb, var(--color-brass) 55%, transparent);
+  box-shadow: 0 0 14px -4px color-mix(in srgb, var(--color-brass) 40%, transparent);
+}
+
+/* ─── Balance counter reveal ───────────────────────────────────────────────── */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.balance-reveal { animation: countUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
 @media (prefers-reduced-motion: reduce) {
-  .rise { animation: none; opacity: 1; }
+  .rise, .panel-enter, .balance-reveal { animation: none; opacity: 1; }
+  .banner { animation: none; }
+  .ledger tbody tr { animation: none; opacity: 1; }
+  .btn-primary::after { display: none; }
   html { scroll-behavior: auto; }
 }
