@@ -24,6 +24,20 @@ function shortAddr(addr) {
   return addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "";
 }
 
+// Map raw wallet/contract errors to a readable message for non-technical users.
+function friendlyError(err) {
+  const raw = (err?.reason || err?.shortMessage || err?.message || "").toLowerCase();
+  if (err?.code === "ACTION_REJECTED" || raw.includes("user rejected") || raw.includes("user denied"))
+    return "Transaction cancelled in MetaMask.";
+  if (raw.includes("accesscontrol") || raw.includes("missing role") || raw.includes("is missing role"))
+    return "This account isn't authorized as an instructor. Switch to an account with INSTRUCTOR_ROLE.";
+  if (raw.includes("insufficient funds"))
+    return "Not enough funds to cover gas. Top up this wallet and try again.";
+  if (raw.includes("network") || raw.includes("could not detect") || raw.includes("failed to fetch"))
+    return "Network error reaching the chain. Check your connection and try again.";
+  return err?.reason || err?.shortMessage || err?.message || "Transaction failed.";
+}
+
 // Render an on-chain activity reference: a clickable IPFS link when it's a CID,
 // otherwise plain text.
 function RefCell({ value }) {
@@ -58,33 +72,47 @@ async function queryLogsChunked(contract, filter, provider, fromBlock) {
 // ─── tiny inline icon set (stroke = currentColor) ────────────────────────────
 const Icon = {
   cap: (p) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
       <path d="M2 8.5 12 4l10 4.5-10 4.5L2 8.5Z" /><path d="M6 10.5v4.2c0 1.3 2.7 2.8 6 2.8s6-1.5 6-2.8v-4.2" /><path d="M22 8.5v5" />
     </svg>
   ),
   quill: (p) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
       <path d="M20 4C12 5 7.5 9.5 5 17l2 2c7.5-2.5 12-7 13-15Z" /><path d="M5 19c2-3 5-5 9-6" /><path d="M3 21l2-2" />
     </svg>
   ),
   gear: (p) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
       <circle cx="12" cy="12" r="3.2" /><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" />
+    </svg>
+  ),
+  coin: (p) => (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <circle cx="12" cy="12" r="8.5" /><path d="M12 7.3v9.4M9.5 9.6c0-1.1 1.1-1.7 2.5-1.7s2.5.6 2.5 1.7-1.1 1.6-2.5 1.7-2.5.6-2.5 1.7 1.1 1.7 2.5 1.7 2.5-.6 2.5-1.7" />
     </svg>
   ),
 };
 
+// Landing "how it works" steps — Approve → Mint → Own.
+const STEPS = [
+  { icon: Icon.quill, title: "Approve", desc: "An instructor reviews a campus activity and seals it on-chain in a single transaction." },
+  { icon: Icon.coin, title: "Mint", desc: "The contract mints ERC-20 Success Tokens — and at the 50 · 100 · 200 SCT milestones, auto-mints an ERC-721 badge." },
+  { icon: Icon.cap, title: "Own", desc: "Tokens and badges land in the student's wallet — portable, verifiable, and theirs to keep." },
+];
+
 // ─── Sub-panels ─────────────────────────────────────────────────────────────
 
-function StudentPanel({ account, provider }) {
+function StudentPanel({ account, provider, refreshKey }) {
   const [balance, setBalance] = useState("0");
   const [history, setHistory] = useState([]);
   const [badges, setBadges] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     if (!provider || !account) return;
     setLoading(true);
+    setError(null);
     try {
       const token = new ethers.Contract(addresses.successToken, successTokenAbi, provider);
       const bal = await token.balanceOf(account);
@@ -131,19 +159,23 @@ function StudentPanel({ account, provider }) {
         );
         setBadges(parsedBadges);
       }
-    } catch (_) {}
+    } catch (e) {
+      setError("Couldn't read the ledger. Check your network connection and try Refresh.");
+    }
     setLoading(false);
   }, [provider, account]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   return (
     <div className="space-y-6">
+      {error && <div className="banner banner-err rise">{error}</div>}
+
       {/* Balance — minted-coin hero */}
       <div className="paper paper--ruled p-7 rise" style={{ animationDelay: "0.02s" }}>
         <p className="eyebrow mb-3">Token of Account · Balance</p>
         <div className="flex items-end gap-3">
-          <span className="display text-7xl font-semibold leading-none text-ink tabular-nums">{balance}</span>
+          <span className="display text-6xl sm:text-7xl font-semibold leading-none text-ink tabular-nums">{balance}</span>
           <span className="display text-2xl text-brass mb-1">SCT</span>
         </div>
         <p className="mt-4 font-mono text-xs text-ink-soft break-all">{account}</p>
@@ -161,7 +193,7 @@ function StudentPanel({ account, provider }) {
         ) : badges.length === 0 ? (
           <p className="text-sm text-ink-soft">No honors yet — earn 50 SCT to claim your first seal.</p>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {badges.map((b) => (
               <div key={b.tokenId} className="trophy flex flex-col items-center gap-2">
                 {b.svg ? (
@@ -206,7 +238,7 @@ function StudentPanel({ account, provider }) {
   );
 }
 
-function InstructorPanel({ signer, provider }) {
+function InstructorPanel({ signer, provider, refreshKey, onMinted }) {
   const [student, setStudent] = useState("");
   const [amount, setAmount] = useState("10");
   const [activityRef, setActivityRef] = useState("");
@@ -246,12 +278,14 @@ function InstructorPanel({ signer, provider }) {
     } catch (_) {}
   }, [provider]);
 
-  useEffect(() => { loadRecent(); }, [loadRecent]);
+  useEffect(() => { loadRecent(); }, [loadRecent, refreshKey]);
 
   const approve = async (e) => {
     e.preventDefault();
-    if (!ethers.isAddress(student)) { setStatus({ type: "err", msg: "Invalid student address" }); return; }
-    if (!activityRef.trim()) { setStatus({ type: "err", msg: "Activity reference required" }); return; }
+    if (!ethers.isAddress(student)) { setStatus({ type: "err", msg: "Enter a valid student wallet address (0x…)" }); return; }
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) { setStatus({ type: "err", msg: "Amount must be a number greater than 0" }); return; }
+    if (!activityRef.trim()) { setStatus({ type: "err", msg: "Activity reference or CID is required" }); return; }
     try {
       setBusy(true);
       setStatus({ type: "pending", msg: "Confirm in MetaMask…" });
@@ -262,8 +296,9 @@ function InstructorPanel({ signer, provider }) {
       setStatus({ type: "ok", msg: `Minted ${amount} SCT to ${shortAddr(student)}` });
       setStudent(""); setActivityRef("");
       loadRecent();
+      onMinted?.();
     } catch (err) {
-      const msg = err?.reason || err?.shortMessage || err?.message || "Transaction failed";
+      const msg = friendlyError(err);
       setStatus({ type: "err", msg });
     } finally { setBusy(false); }
   };
@@ -275,8 +310,8 @@ function InstructorPanel({ signer, provider }) {
         <h2 className="display text-2xl font-semibold text-ink mb-5">Approve &amp; Mint Award</h2>
         <form onSubmit={approve} className="space-y-4">
           <div>
-            <label className="label">Student wallet address</label>
-            <input value={student} onChange={(e) => setStudent(e.target.value)} placeholder="0x…" className="field" />
+            <label htmlFor="inst-student" className="label">Student wallet address</label>
+            <input id="inst-student" value={student} onChange={(e) => setStudent(e.target.value)} placeholder="0x…" className="field" />
           </div>
           <div>
             <label className="label">Evidence file → IPFS</label>
@@ -286,20 +321,20 @@ function InstructorPanel({ signer, provider }) {
                 <span className="text-xs text-ink-soft font-sans">
                   {activityRef && looksLikeCid(activityRef) ? `Pinned · ${activityRef.slice(0, 12)}…` : "Upload proof — CID fills the reference below"}
                 </span>
-                <input type="file" className="hidden" onChange={handleFile} disabled={uploading} />
+                <input type="file" aria-label="Upload evidence file to IPFS" className="hidden" onChange={handleFile} disabled={uploading} />
               </label>
             ) : (
               <p className="text-xs text-ink-soft font-mono">IPFS upload off — set VITE_PINATA_JWT to enable. Enter a reference manually below.</p>
             )}
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              <label className="label">Amount (SCT)</label>
-              <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="field" />
+              <label htmlFor="inst-amount" className="label">Amount (SCT)</label>
+              <input id="inst-amount" type="number" min="1" step="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="field" />
             </div>
             <div className="flex-1">
-              <label className="label">Activity ref / CID</label>
-              <input value={activityRef} onChange={(e) => setActivityRef(e.target.value)} placeholder="event-001 or IPFS CID" className="field" />
+              <label htmlFor="inst-ref" className="label">Activity ref / CID</label>
+              <input id="inst-ref" value={activityRef} onChange={(e) => setActivityRef(e.target.value)} placeholder="event-001 or IPFS CID" className="field" />
             </div>
           </div>
           <button type="submit" disabled={busy} className="btn btn-primary w-full py-3">
@@ -362,7 +397,7 @@ function AdminPanel({ signer, provider, account }) {
       setStatus({ type: "ok", msg: `INSTRUCTOR_ROLE granted to ${shortAddr(target)}` });
       setIsInstructor(true);
     } catch (err) {
-      setStatus({ type: "err", msg: err?.reason || err?.shortMessage || err?.message });
+      setStatus({ type: "err", msg: friendlyError(err) });
     } finally { setBusy(false); }
   };
 
@@ -376,7 +411,7 @@ function AdminPanel({ signer, provider, account }) {
       setStatus({ type: "ok", msg: `INSTRUCTOR_ROLE revoked from ${shortAddr(target)}` });
       setIsInstructor(false);
     } catch (err) {
-      setStatus({ type: "err", msg: err?.reason || err?.shortMessage || err?.message });
+      setStatus({ type: "err", msg: friendlyError(err) });
     } finally { setBusy(false); }
   };
 
@@ -406,7 +441,7 @@ function AdminPanel({ signer, provider, account }) {
       <div className="paper p-6 rise" style={{ animationDelay: "0.1s" }}>
         <h2 className="display text-xl font-semibold text-ink mb-5">Instructor Role Management</h2>
         <div className="flex gap-3 mb-4">
-          <input value={target} onChange={(e) => { setTarget(e.target.value); setIsInstructor(null); }} placeholder="0x… wallet address" className="field flex-1" />
+          <input aria-label="Wallet address to grant or revoke instructor role" value={target} onChange={(e) => { setTarget(e.target.value); setIsInstructor(null); }} placeholder="0x… wallet address" className="field flex-1" />
           <button onClick={checkRole} className="btn btn-ghost px-5">Check</button>
         </div>
         {isInstructor !== null && (
@@ -441,6 +476,8 @@ export default function App() {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [tab, setTab] = useState("Student");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const connect = useCallback(async () => {
     if (!window.ethereum) { alert("MetaMask not found."); return; }
@@ -467,15 +504,29 @@ export default function App() {
         <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <span className="seal text-lg">SCT</span>
-            <div>
-              <p className="display text-lg font-semibold text-ink leading-tight">Campus Mint</p>
-              <p className="eyebrow">Token-Based Success Award</p>
-            </div>
+            <p className="display text-xl font-semibold text-ink leading-tight">Campus Mint</p>
           </div>
           {account ? (
-            <div className="flex items-center gap-2.5 paper px-4 py-2">
-              <span className="w-2 h-2 rounded-full bg-forest" />
-              <span className="font-mono text-xs text-ink-soft">{shortAddr(account)}</span>
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* network badge — reflects whether the wallet is on the right chain */}
+              <span
+                className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-mono border ${
+                  chainOk ? "border-rule-strong text-ink-soft" : "border-oxblood text-oxblood"
+                }`}
+                title={`chainId ${addresses.chainId}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${chainOk ? "bg-forest" : "bg-oxblood"}`} />
+                {NETWORK_NAME}
+              </span>
+              {chainOk && (
+                <button onClick={refresh} className="btn btn-ghost px-3 py-2 text-xs" title="Reload on-chain data">
+                  Refresh
+                </button>
+              )}
+              <div className="flex items-center gap-2.5 paper px-3 sm:px-4 py-2">
+                <span className="w-2 h-2 rounded-full bg-forest" />
+                <span className="font-mono text-xs text-ink-soft">{shortAddr(account)}</span>
+              </div>
             </div>
           ) : (
             <button onClick={connect} className="btn btn-primary px-5 py-2.5 text-sm">Connect MetaMask</button>
@@ -485,37 +536,63 @@ export default function App() {
 
       <main className="max-w-4xl mx-auto px-6 py-10">
         {!account ? (
-          <div className="text-center py-20 rise">
-            <div className="seal mx-auto mb-7" style={{ width: "5rem", height: "5rem", fontSize: "1.6rem" }}>SCT</div>
-            <p className="eyebrow mb-4">Chartered on {NETWORK_NAME}</p>
-            <h1 className="display text-5xl font-semibold text-ink mb-4 leading-tight max-w-xl mx-auto">
-              Earn your honors,<br />minted on-chain.
-            </h1>
-            <p className="text-ink-soft mb-9 max-w-md mx-auto leading-relaxed">
-              A blockchain reward ledger for campus engagement. Connect your wallet to claim Success Tokens and sealed achievement honors.
-            </p>
-            <button onClick={connect} className="btn btn-primary px-8 py-3.5">Connect MetaMask</button>
-          </div>
-        ) : (
-          <>
-            {!chainOk && (
-              <div className="mb-6 banner banner-warn rise">
-                Wrong network — switch MetaMask to <strong>{NETWORK_NAME}</strong> (chainId {addresses.chainId})
-              </div>
-            )}
-            {/* Tab bar — ledger tabs */}
-            <div className="flex items-center gap-7 mb-8 border-b border-rule-strong rise">
-              {TABS.map(({ id, icon: TabIcon }) => (
-                <button key={id} className="tab flex items-center gap-2" data-active={tab === id} onClick={() => setTab(id)}>
-                  <TabIcon className="w-4 h-4" />{id}
-                </button>
-              ))}
+          <div>
+            <div className="text-center pt-20 pb-14 rise">
+              <div className="seal mx-auto mb-7" style={{ width: "5rem", height: "5rem", fontSize: "1.6rem" }}>SCT</div>
+              <p className="eyebrow mb-4">Chartered on {NETWORK_NAME}</p>
+              <h1 className="display text-5xl font-semibold text-ink mb-4 leading-tight max-w-xl mx-auto">
+                Earn your honors,<br />minted on-chain.
+              </h1>
+              <p className="text-ink-soft mb-9 max-w-md mx-auto leading-relaxed">
+                A blockchain reward ledger for campus engagement. Connect your wallet to claim Success Tokens and sealed achievement honors.
+              </p>
+              <button onClick={connect} className="btn btn-primary px-8 py-3.5">Connect MetaMask</button>
             </div>
 
-            {tab === "Student" && <StudentPanel account={account} provider={provider} />}
-            {tab === "Instructor" && <InstructorPanel signer={signer} provider={provider} />}
-            {tab === "Admin" && <AdminPanel signer={signer} provider={provider} account={account} />}
-          </>
+            {/* How it works — Approve → Mint → Own */}
+            <div className="pb-16">
+              <p className="eyebrow text-center mb-7">How the ledger works</p>
+              <div className="grid sm:grid-cols-3 gap-5 max-w-3xl mx-auto">
+                {STEPS.map((s, i) => (
+                  <div key={s.title} className="paper paper--ruled p-6 text-left rise" style={{ animationDelay: `${0.1 + i * 0.08}s` }}>
+                    <div className="flex items-center justify-between mb-3.5">
+                      <span className="step-num">{i + 1}</span>
+                      <s.icon className="w-5 h-5 text-brass" />
+                    </div>
+                    <h3 className="display text-lg font-semibold text-ink mb-1.5">{s.title}</h3>
+                    <p className="text-sm text-ink-soft leading-relaxed">{s.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          !chainOk ? (
+            <div className="paper paper--ruled p-8 sm:p-10 text-center rise max-w-lg mx-auto mt-10">
+              <p className="eyebrow mb-3">Network mismatch</p>
+              <h2 className="display text-2xl font-semibold text-ink mb-3">Switch to {NETWORK_NAME}</h2>
+              <p className="text-ink-soft text-sm mb-4 leading-relaxed">
+                Your wallet is on a different network. This ledger is deployed on <strong>{NETWORK_NAME}</strong> (chainId {addresses.chainId}).
+                Open MetaMask and switch networks to continue.
+              </p>
+              <div className="banner banner-warn inline-block">chainId must be {addresses.chainId}</div>
+            </div>
+          ) : (
+            <>
+              {/* Tab bar — ledger tabs */}
+              <div className="flex items-center gap-5 sm:gap-7 mb-8 border-b border-rule-strong rise">
+                {TABS.map(({ id, icon: TabIcon }) => (
+                  <button key={id} className="tab flex items-center gap-2" data-active={tab === id} onClick={() => setTab(id)}>
+                    <TabIcon className="w-4 h-4" />{id}
+                  </button>
+                ))}
+              </div>
+
+              {tab === "Student" && <StudentPanel account={account} provider={provider} refreshKey={refreshKey} />}
+              {tab === "Instructor" && <InstructorPanel signer={signer} provider={provider} refreshKey={refreshKey} onMinted={refresh} />}
+              {tab === "Admin" && <AdminPanel signer={signer} provider={provider} account={account} />}
+            </>
+          )
         )}
       </main>
 

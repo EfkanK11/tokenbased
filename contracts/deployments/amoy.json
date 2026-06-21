@@ -1,8 +1,10 @@
 {
   "network": "amoy",
   "chainId": 80002,
-  "successToken": "0x54e8d0B2a50D583EcF59B137e93aE6Db69Cd638d",
-  "rewardManager": "0xa0468640c8153aDaA6B148810B9102dbac5FF54E",
+  "successToken": "0x117AE534054962A938d69Cb1FD2C4340fE4b47B9",
+  "rewardManager": "0xb4C52C6eDCbdbC28859bBF481233f8f273c44617",
+  "achievementBadge": "0xFC55a321881611688CF538bA3149aaE956E04fFe",
   "admin": "0xD6dF56c4dbE3a03623a9b3cA3C6dD02a640270fc",
-  "deployedAt": "2026-06-09T17:47:04.560Z"
+  "deployBlock": 40022470,
+  "deployedAt": "2026-06-12T11:54:49.145Z"
 }

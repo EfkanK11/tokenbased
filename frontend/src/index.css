@@ -109,6 +109,10 @@ body::before {
 }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brass) 40%, transparent);
+}
 
 .btn-primary {
   color: #fdf8ec;
@@ -217,6 +221,12 @@ body::before {
   transition: color 0.16s ease;
 }
 .tab:hover { color: var(--color-ink); }
+.tab:focus-visible {
+  outline: 2px solid var(--color-brass);
+  outline-offset: 3px;
+  border-radius: 3px;
+  color: var(--color-ink);
+}
 .tab[data-active="true"] { color: var(--color-ink); }
 .tab[data-active="true"]::after {
   content: "";
@@ -225,6 +235,20 @@ body::before {
   height: 3px;
   border-radius: 3px;
   background: linear-gradient(90deg, var(--color-brass), var(--color-brass-bright));
+}
+
+/* ─── Step number chip (landing "how it works") ─────────────────────────────── */
+.step-num {
+  display: grid;
+  place-items: center;
+  width: 1.85rem; height: 1.85rem;
+  border-radius: 9999px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-brass);
+  background: color-mix(in srgb, var(--color-brass) 12%, var(--color-parchment-3));
+  border: 1px solid color-mix(in srgb, var(--color-brass) 38%, transparent);
 }
 
 /* ─── Entrance animation ────────────────────────────────────────────────────── */

@@ -131,39 +131,69 @@ contract AchievementBadge is ERC721, Ownable {
 
     // ─── Internal ───────────────────────────────────────────────────────────
 
+    /// @dev Tier palette so each milestone level reads as a distinct metal:
+    ///      L1 bronze, L2 silver, L3+ gold. Returns (main, dark) hex colors.
+    function _palette(uint256 level)
+        internal
+        pure
+        returns (string memory main, string memory dark)
+    {
+        if (level >= 3) return ("#d9b13b", "#9c7611"); // gold
+        if (level == 2) return ("#8c9197", "#5a5f66"); // silver
+        return ("#b5733a", "#8a4f24");                 // bronze (L1 + default)
+    }
+
     /// @dev Builds an inline SVG medal in the "Campus Mint" brand palette
-    ///      (parchment + brass + ink). Fully on-chain, no external fonts/hosts.
+    ///      (parchment + ink) with a tier-colored medallion (bronze/silver/gold).
+    ///      Fully on-chain, no external fonts/hosts. Split into _svgTop/_svgBottom
+    ///      to keep each frame shallow enough to avoid "stack too deep".
     function _svg(string memory name, uint256 level)
         internal
         pure
         returns (string memory)
     {
-        string memory lvl = level.toString();
+        (string memory main, string memory dark) = _palette(level);
+        return string(
+            abi.encodePacked(
+                _svgTop(main, dark),
+                _svgBottom(name, level.toString(), main)
+            )
+        );
+    }
 
-        // Frame + brass star medallion centred at (200,168).
-        string memory top = string(
+    /// @dev Frame + tier-colored star medallion centred at (200,168).
+    function _svgTop(string memory main, string memory dark)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string(
             abi.encodePacked(
                 '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">',
                 '<rect width="400" height="400" fill="#f0e7d4"/>',
                 '<rect x="14" y="14" width="372" height="372" rx="14" fill="#fbf7ec" stroke="#c4b48f" stroke-width="2"/>',
-                '<rect x="48" y="46" width="304" height="3" fill="#a87c1e"/>',
-                '<circle cx="200" cy="168" r="88" fill="#fbf7ec" stroke="#a87c1e" stroke-width="9"/>',
-                '<circle cx="200" cy="168" r="72" fill="none" stroke="#c89a36" stroke-width="2"/>',
-                '<path d="M200 120 211 153 246 153 218 174 228 207 200 187 172 207 182 174 154 153 189 153 Z" fill="#a87c1e" stroke="#7e5a13" stroke-width="2" stroke-linejoin="round"/>'
+                '<rect x="48" y="46" width="304" height="3" fill="', main, '"/>',
+                '<circle cx="200" cy="168" r="88" fill="#fbf7ec" stroke="', main, '" stroke-width="9"/>',
+                '<circle cx="200" cy="168" r="72" fill="none" stroke="', dark, '" stroke-width="2"/>',
+                '<path d="M200 120 211 153 246 153 218 174 228 207 200 187 172 207 182 174 154 153 189 153 Z" fill="', main, '" stroke="', dark, '" stroke-width="2" stroke-linejoin="round"/>'
             )
         );
+    }
 
-        // Level digit in the medal + badge name + caption.
-        string memory bottom = string(
+    /// @dev Level digit in the medal + badge name + caption.
+    function _svgBottom(string memory name, string memory lvl, string memory main)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string(
             abi.encodePacked(
                 '<text x="200" y="178" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#fdf8ec" text-anchor="middle">', lvl, '</text>',
                 '<text x="200" y="306" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#1c1813" text-anchor="middle">', name, '</text>',
                 '<text x="200" y="338" font-family="monospace" font-size="15" letter-spacing="3" fill="#6a6051" text-anchor="middle">LEVEL ', lvl, '</text>',
-                '<text x="200" y="372" font-family="monospace" font-size="11" letter-spacing="4" fill="#a87c1e" text-anchor="middle">CAMPUS MINT - SCT</text>',
+                '<text x="200" y="372" font-family="monospace" font-size="11" letter-spacing="4" fill="', main, '" text-anchor="middle">CAMPUS MINT - SCT</text>',
                 '</svg>'
             )
         );
-
-        return string(abi.encodePacked(top, bottom));
     }
 }

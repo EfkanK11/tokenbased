@@ -12,6 +12,9 @@ module.exports = {
     version: "0.8.24",
     settings: {
       evmVersion: "cancun",
+      // viaIR lets the optimizer handle the deep abi.encodePacked chains in
+      // AchievementBadge's on-chain SVG without "stack too deep".
+      viaIR: true,
       optimizer: {
         enabled: true,
         runs: 200,
