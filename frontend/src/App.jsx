@@ -612,8 +612,14 @@ export default function App() {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [tab, setTab] = useState("Student");
+  const [role, setRole] = useState(null); // 'admin' | 'instructor' | 'student'
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Tabs each role may see — students only their own panel, up to full access for admin
+  const ROLE_TABS = { admin: ["Student", "Instructor", "Admin"], instructor: ["Student", "Instructor"], student: ["Student"] };
+  const allowedTabs = ROLE_TABS[role] || ["Student"];
+  const visibleTabs = TABS.filter((t) => allowedTabs.includes(t.id));
 
   const connect = useCallback(async () => {
     if (!window.ethereum) { alert("MetaMask not found."); return; }
@@ -632,6 +638,30 @@ export default function App() {
     window.ethereum.on("accountsChanged", () => window.location.reload());
     window.ethereum.on("chainChanged", () => window.location.reload());
   }, []);
+
+  // Detect the connected wallet's on-chain role to scope which panels it can reach
+  useEffect(() => {
+    if (!account || !provider || !chainOk) { setRole(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, provider);
+        const [isAdmin, isInstructor] = await Promise.all([
+          manager.hasRole(ethers.ZeroHash, account), // DEFAULT_ADMIN_ROLE = 0x00…00
+          manager.hasRole(INSTRUCTOR_ROLE, account),
+        ]);
+        if (!cancelled) setRole(isAdmin ? "admin" : isInstructor ? "instructor" : "student");
+      } catch (_) {
+        if (!cancelled) setRole("student");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [account, provider, chainOk]);
+
+  // If the active tab is no longer permitted for this role, fall back to Student
+  useEffect(() => {
+    if (role && !allowedTabs.includes(tab)) setTab("Student");
+  }, [role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="relative min-h-screen" style={{ zIndex: 1 }}>
@@ -662,6 +692,9 @@ export default function App() {
               <div className="flex items-center gap-2.5 paper px-3 sm:px-4 py-2">
                 <span className="w-2 h-2 rounded-full bg-forest" />
                 <span className="font-mono text-xs text-ink-soft">{shortAddr(account)}</span>
+                {chainOk && role && (
+                  <span className={`stamp ${role === "student" ? "" : "stamp--ok"}`}>{role}</span>
+                )}
               </div>
             </div>
           ) : (
@@ -725,7 +758,7 @@ export default function App() {
             <>
               {/* Tab bar — ledger tabs */}
               <div className="flex items-center gap-5 sm:gap-7 mb-8 border-b border-rule-strong rise">
-                {TABS.map(({ id, icon: TabIcon }) => (
+                {visibleTabs.map(({ id, icon: TabIcon }) => (
                   <button key={id} className="tab flex items-center gap-2" data-active={tab === id} onClick={() => setTab(id)}>
                     <TabIcon className="w-4 h-4" />{id}
                   </button>
