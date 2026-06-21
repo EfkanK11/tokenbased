@@ -112,6 +112,24 @@ const Icon = {
   ),
 };
 
+// Laurel-wreath brand mark — two symmetric sprigs meeting at the base,
+// with a small star crowning the centre. stroke = currentColor.
+function LaurelMark({ className }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M24 41C15 37 11 28 14 16" />
+      <path d="M24 41C33 37 37 28 34 16" />
+      <path d="M14 19c-3-1-5 0-6 3 3 1 5 0 6-3" />
+      <path d="M14.5 25c-3-1-5 0-6 3 3 1 5 0 6-3" />
+      <path d="M16 31c-3-1-5 0-6 3 3 1 5 0 6-3" />
+      <path d="M34 19c3-1 5 0 6 3-3 1-5 0-6-3" />
+      <path d="M33.5 25c3-1 5 0 6 3-3 1-5 0-6-3" />
+      <path d="M32 31c3-1 5 0 6 3-3 1-5 0-6-3" />
+      <path d="M24 7.5l1.4 3 3.3.3-2.5 2.1.8 3.2L24 17.4l-3 1.7.8-3.2-2.5-2.1 3.3-.3z" />
+    </svg>
+  );
+}
+
 // Landing "how it works" steps — Approve → Mint → Own.
 const STEPS = [
   { icon: Icon.quill, title: "Approve", desc: "An instructor reviews a campus activity and seals it on-chain in a single transaction." },
@@ -583,8 +601,8 @@ export default function App() {
       <header className="sticky top-0 z-10 border-b border-rule-strong" style={{ background: "color-mix(in srgb, var(--color-parchment) 88%, transparent)", backdropFilter: "blur(8px)" }}>
         <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <span className="seal text-lg">SCT</span>
-            <p className="display text-xl font-semibold text-ink leading-tight">Campus Mint</p>
+            <span className="seal"><LaurelMark className="w-6 h-6" /></span>
+            <p className="display text-xl font-semibold text-ink leading-tight">Laurel</p>
           </div>
           {account ? (
             <div className="flex items-center gap-2 sm:gap-2.5">
@@ -618,7 +636,7 @@ export default function App() {
         {!account ? (
           <div>
             <div className="text-center pt-20 pb-14 rise">
-              <div className="seal mx-auto mb-7" style={{ width: "5rem", height: "5rem", fontSize: "1.6rem" }}>SCT</div>
+              <div className="seal mx-auto mb-7" style={{ width: "5rem", height: "5rem" }}><LaurelMark className="w-10 h-10" /></div>
               <p className="eyebrow mb-4">Chartered on {NETWORK_NAME}</p>
               <h1 className="display text-5xl font-semibold text-ink mb-4 leading-tight max-w-xl mx-auto">
                 Earn your honors,<br />minted on-chain.

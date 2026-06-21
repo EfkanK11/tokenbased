@@ -143,7 +143,7 @@ contract AchievementBadge is ERC721, Ownable {
         return ("#b5733a", "#8a4f24");                 // bronze (L1 + default)
     }
 
-    /// @dev Builds an inline SVG medal in the "Campus Mint" brand palette
+    /// @dev Builds an inline SVG medal in the "Laurel" brand palette
     ///      (parchment + ink) with a tier-colored medallion (bronze/silver/gold).
     ///      Fully on-chain, no external fonts/hosts. Split into _svgTop/_svgBottom
     ///      to keep each frame shallow enough to avoid "stack too deep".
@@ -191,7 +191,7 @@ contract AchievementBadge is ERC721, Ownable {
                 '<text x="200" y="178" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#fdf8ec" text-anchor="middle">', lvl, '</text>',
                 '<text x="200" y="306" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#1c1813" text-anchor="middle">', name, '</text>',
                 '<text x="200" y="338" font-family="monospace" font-size="15" letter-spacing="3" fill="#6a6051" text-anchor="middle">LEVEL ', lvl, '</text>',
-                '<text x="200" y="372" font-family="monospace" font-size="11" letter-spacing="4" fill="', main, '" text-anchor="middle">CAMPUS MINT - SCT</text>',
+                '<text x="200" y="372" font-family="monospace" font-size="11" letter-spacing="4" fill="', main, '" text-anchor="middle">LAUREL - SCT</text>',
                 '</svg>'
             )
         );

@@ -6,6 +6,7 @@ typechain-types/
 coverage/
 coverage.json
 dist/
+node.log
 
 # Local AI assistant config / session notes (not part of the project)
 CLAUDE.md
