@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { ethers } from "ethers";
 import addresses from "./contracts/addresses.json";
 import successTokenAbi from "./contracts/SuccessToken.abi.json";
@@ -110,6 +110,11 @@ const Icon = {
       <circle cx="12" cy="12" r="8.5" /><path d="M12 7.3v9.4M9.5 9.6c0-1.1 1.1-1.7 2.5-1.7s2.5.6 2.5 1.7-1.1 1.6-2.5 1.7-2.5.6-2.5 1.7 1.1 1.7 2.5 1.7 2.5-.6 2.5-1.7" />
     </svg>
   ),
+  arrow: (p) => (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M4 12h15" /><path d="M13 6l6 6-6 6" />
+    </svg>
+  ),
 };
 
 // Laurel-wreath brand mark — two symmetric sprigs meeting at the base,
@@ -132,9 +137,9 @@ function LaurelMark({ className }) {
 
 // Landing "how it works" steps — Approve → Mint → Own.
 const STEPS = [
-  { icon: Icon.quill, title: "Approve", desc: "An instructor reviews a campus activity and seals it on-chain in a single transaction." },
-  { icon: Icon.coin, title: "Mint", desc: "The contract mints ERC-20 Success Tokens — and at the 50 · 100 · 200 SCT milestones, auto-mints an ERC-721 badge." },
-  { icon: Icon.cap, title: "Own", desc: "Tokens and badges land in the student's wallet — portable, verifiable, and theirs to keep." },
+  { icon: Icon.quill, title: "Approve", sub: "Instructor seals" },
+  { icon: Icon.coin, title: "Mint", sub: "Auto on-chain" },
+  { icon: Icon.cap, title: "Own", sub: "In your wallet" },
 ];
 
 // ─── Landing stats strip — reads chain without wallet ───────────────────────
@@ -173,19 +178,22 @@ function StatsStrip() {
   if (stats.sct === 0 && stats.badges === 0) return null;
 
   return (
-    <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto pb-16 rise" style={{ animationDelay: "0.35s" }}>
-      {[
-        { value: sctDisplay, label: "SCT Minted", suffix: "" },
-        { value: badgeDisplay, label: "Badges Awarded", suffix: "" },
-        { value: activityDisplay, label: "Activities Approved", suffix: "" },
-      ].map((s) => (
-        <div key={s.label} className="paper p-5 text-center">
-          <p className="display text-3xl sm:text-4xl font-semibold text-brass tabular-nums balance-reveal">
-            {s.value}{s.suffix}
-          </p>
-          <p className="eyebrow mt-2">{s.label}</p>
-        </div>
-      ))}
+    <div className="max-w-2xl mx-auto pb-16 rise" style={{ animationDelay: "0.35s" }}>
+      <p className="eyebrow text-center mb-4">Protocol ledger · all students</p>
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { value: sctDisplay, label: "Total SCT Minted", suffix: "" },
+          { value: badgeDisplay, label: "Total Badges Awarded", suffix: "" },
+          { value: activityDisplay, label: "Total Activities", suffix: "" },
+        ].map((s) => (
+          <div key={s.label} className="paper p-5 text-center">
+            <p className="display text-3xl sm:text-4xl font-semibold text-brass tabular-nums balance-reveal">
+              {s.value}{s.suffix}
+            </p>
+            <p className="eyebrow mt-2">{s.label}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -652,17 +660,22 @@ export default function App() {
 
             {/* How it works — Approve → Mint → Own */}
             <div className="pb-16">
-              <p className="eyebrow text-center mb-7">How the ledger works</p>
-              <div className="grid sm:grid-cols-3 gap-5 max-w-3xl mx-auto">
+              <p className="eyebrow text-center mb-8">How the ledger works</p>
+              <div className="flex flex-col sm:flex-row items-stretch justify-center gap-3 max-w-3xl mx-auto">
                 {STEPS.map((s, i) => (
-                  <div key={s.title} className="paper paper--ruled p-6 text-left rise" style={{ animationDelay: `${0.1 + i * 0.08}s` }}>
-                    <div className="flex items-center justify-between mb-3.5">
-                      <span className="step-num">{i + 1}</span>
-                      <s.icon className="w-5 h-5 text-brass" />
+                  <Fragment key={s.title}>
+                    <div className="paper flex-1 p-6 text-center rise flex flex-col items-center" style={{ animationDelay: `${0.1 + i * 0.08}s` }}>
+                      <span className="stamp mb-5">No.{i + 1}</span>
+                      <s.icon className="w-14 h-14 text-ink mb-3" strokeWidth={2} />
+                      <h3 className="display text-xl text-ink">{s.title}</h3>
+                      <p className="text-[0.7rem] tracking-[0.16em] uppercase text-ink-soft mt-1.5">{s.sub}</p>
                     </div>
-                    <h3 className="display text-lg font-semibold text-ink mb-1.5">{s.title}</h3>
-                    <p className="text-sm text-ink-soft leading-relaxed">{s.desc}</p>
-                  </div>
+                    {i < STEPS.length - 1 && (
+                      <div className="flex items-center justify-center text-ink py-1 sm:py-0" aria-hidden="true">
+                        <Icon.arrow className="w-7 h-7 rotate-90 sm:rotate-0" strokeWidth={2.4} />
+                      </div>
+                    )}
+                  </Fragment>
                 ))}
               </div>
             </div>

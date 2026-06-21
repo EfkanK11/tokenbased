@@ -1,25 +1,31 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Hanken+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* ─── Design tokens: "Laurel" — chartered academic ledger ──────────────── */
+/* ─── Design tokens: "Laurel Registry" — brutalist official document ──────────── */
 @theme {
-  --color-parchment:    #f0e7d4;  /* page */
-  --color-parchment-2:  #fbf7ec;  /* cards */
-  --color-parchment-3:  #f6efdf;  /* insets */
-  --color-ink:          #1c1813;  /* primary text */
-  --color-ink-soft:     #6a6051;  /* muted text */
-  --color-ink-faint:    #b3a88f;  /* placeholder */
-  --color-rule:         #d8cbae;  /* hairlines / borders */
-  --color-rule-strong:  #c4b48f;
-  --color-brass:        #a87c1e;  /* primary action / seal */
+  --color-paper:        #e7e2d3;  /* page (bone) */
+  --color-paper-2:      #f4f1e7;  /* cards (light bone) */
+  --color-paper-3:      #ddd7c5;  /* insets */
+  --color-ink:          #14120c;  /* near-black — text + rules + borders */
+  --color-ink-soft:     #55503f;  /* muted text */
+  --color-ink-faint:    #8d8773;  /* placeholder */
+  --color-rule:         #14120c;  /* brutalist rules are BLACK */
+  --color-rule-strong:  #14120c;
+  --color-line:         #c4bda6;  /* faint ledger hairlines */
+  --color-stamp:        #b02a1f;  /* oxblood-red stamp — primary accent */
+  --color-stamp-deep:   #8a1f17;
+  --color-brass:        #9a7b22;  /* retained for badge medallion bits */
   --color-brass-bright: #c89a36;
   --color-forest:       #2f5d3a;  /* token amounts / success */
-  --color-oxblood:      #9b2c24;  /* danger */
+  --color-oxblood:      #9b2c24;  /* danger (alias of stamp family) */
   --color-amber:        #a4691a;  /* warning */
 
-  --font-display: "Fraunces", "Georgia", serif;
-  --font-sans:    "Hanken Grotesk", system-ui, sans-serif;
+  --font-display: "Archivo", "Arial Narrow", sans-serif;
+  --font-sans:    "IBM Plex Mono", ui-monospace, monospace;
   --font-mono:    "IBM Plex Mono", ui-monospace, monospace;
+
+  --shadow-hard:    4px 4px 0 var(--color-ink);
+  --shadow-hard-sm: 3px 3px 0 var(--color-ink);
 }
 
 * { box-sizing: border-box; }
@@ -30,16 +36,15 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--color-ink);
-  font-family: var(--font-sans);
-  font-feature-settings: "ss01", "cv01";
+  font-family: var(--font-mono);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  background-color: #f0e7d4;
-  /* layered parchment: warm vignette + faint ledger tint */
+  background-color: var(--color-paper);
+  /* faint ledger grid — like a bound registry book */
   background-image:
-    radial-gradient(1200px 600px at 50% -10%, #fbf6e8 0%, rgba(251,246,232,0) 60%),
-    radial-gradient(900px 500px at 100% 110%, #eadfc4 0%, rgba(234,223,196,0) 55%);
-  background-attachment: fixed;
+    repeating-linear-gradient(0deg, transparent 0, transparent 31px, color-mix(in srgb, var(--color-line) 55%, transparent) 31px, color-mix(in srgb, var(--color-line) 55%, transparent) 32px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-line) 70%, transparent) 0 2px, transparent 2px);
+  background-position: 0 0, 64px 0;
 }
 
 /* fine paper grain overlay */
@@ -49,91 +54,86 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.04;
+  opacity: 0.05;
   mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* ─── Engraved type helpers ─────────────────────────────────────────────────── */
+/* ─── Type helpers ──────────────────────────────────────────────────────────── */
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.22em;
+  font-weight: 600;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: var(--color-ink-soft);
+  color: var(--color-stamp);
 }
-.display { font-family: var(--font-display); font-optical-sizing: auto; letter-spacing: -0.015em; }
+.eyebrow::before { content: "§ "; opacity: 0.7; }
 
-/* ─── Paper card: letterpress panel with brass top-rule ──────────────────────── */
+.display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+/* ─── Paper card: hard-edged registry panel with offset shadow ───────────────── */
 .paper {
   position: relative;
-  background: var(--color-parchment-2);
-  border: 1px solid var(--color-rule);
-  border-radius: 6px;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.7) inset,
-    0 14px 32px -22px rgba(40,32,16,0.55);
+  background: var(--color-paper-2);
+  border: 2px solid var(--color-ink);
+  border-radius: 0;
+  box-shadow: var(--shadow-hard);
 }
 .paper--ruled::before {
   content: "";
   position: absolute;
-  top: 0; left: 1.25rem; right: 1.25rem;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--color-brass) 18%, var(--color-brass-bright) 50%, var(--color-brass) 82%, transparent);
-  opacity: 0.8;
+  top: 0; left: 0; right: 0;
+  height: 6px;
+  background:
+    repeating-linear-gradient(90deg, var(--color-ink) 0 14px, transparent 14px 20px);
+  border-bottom: 2px solid var(--color-ink);
 }
 
-/* ─── Wax-seal monogram ─────────────────────────────────────────────────────── */
+/* ─── Laurel stamp seal ─────────────────────────────────────────────────────── */
 .seal {
   display: grid;
   place-items: center;
   width: 2.75rem; height: 2.75rem;
-  border-radius: 9999px;
-  color: var(--color-parchment-2);
-  background:
-    radial-gradient(circle at 35% 30%, var(--color-brass-bright), var(--color-brass) 55%, #7e5a13 100%);
-  box-shadow: 0 3px 10px -3px rgba(124,90,19,0.7), 0 0 0 1px rgba(126,90,19,0.5), 0 0 0 4px var(--color-parchment-2), 0 0 0 5px var(--color-rule-strong);
-  font-family: var(--font-display);
-  font-weight: 700;
+  border-radius: 0;
+  color: var(--color-stamp);
+  background: var(--color-paper-2);
+  border: 2px solid var(--color-stamp);
+  box-shadow: inset 0 0 0 2px var(--color-paper-2), inset 0 0 0 3px var(--color-stamp);
+  transform: rotate(-3deg);
 }
 
-/* ─── Buttons ───────────────────────────────────────────────────────────────── */
+/* ─── Buttons: flat, hard border + offset shadow, press-into-shadow ──────────── */
 .btn {
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-weight: 700;
-  letter-spacing: 0.02em;
-  border-radius: 6px;
-  transition: transform 0.12s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.8125rem;
+  border-radius: 0;
+  border: 2px solid var(--color-ink);
+  box-shadow: var(--shadow-hard-sm);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.12s ease, color 0.12s ease;
   cursor: pointer;
 }
-.btn:active { transform: translateY(1px); }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-.btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brass) 40%, transparent);
-}
+.btn:hover:not(:disabled) { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--color-ink); }
+.btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--color-ink); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: var(--shadow-hard-sm); transform: none; }
+.btn:focus-visible { outline: 2px solid var(--color-stamp); outline-offset: 3px; }
 
-.btn-primary {
-  color: #fdf8ec;
-  background: linear-gradient(180deg, var(--color-brass-bright), var(--color-brass));
-  box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset, 0 8px 18px -10px rgba(124,90,19,0.8);
-}
-.btn-primary:hover:not(:disabled) { box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 10px 22px -8px rgba(124,90,19,0.85); }
+.btn-primary { color: var(--color-paper-2); background: var(--color-ink); }
+.btn-primary:hover:not(:disabled) { background: var(--color-stamp); border-color: var(--color-ink); }
 
-.btn-ghost {
-  color: var(--color-ink);
-  background: transparent;
-  border: 1px solid var(--color-rule-strong);
-}
-.btn-ghost:hover:not(:disabled) { border-color: var(--color-brass); color: var(--color-brass); }
+.btn-ghost { color: var(--color-ink); background: var(--color-paper-2); }
+.btn-ghost:hover:not(:disabled) { background: var(--color-ink); color: var(--color-paper-2); }
 
-.btn-danger {
-  color: var(--color-oxblood);
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--color-oxblood) 45%, transparent);
-}
-.btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--color-oxblood) 8%, transparent); border-color: var(--color-oxblood); }
+.btn-danger { color: var(--color-paper-2); background: var(--color-stamp); border-color: var(--color-ink); }
+.btn-danger:hover:not(:disabled) { background: var(--color-stamp-deep); }
 
 /* ─── Inputs ────────────────────────────────────────────────────────────────── */
 .field {
@@ -141,121 +141,139 @@ body::before {
   font-family: var(--font-mono);
   font-size: 0.875rem;
   color: var(--color-ink);
-  background: var(--color-parchment-3);
-  border: 1px solid var(--color-rule);
-  border-radius: 6px;
-  padding: 0.7rem 0.9rem;
-  box-shadow: 0 1px 2px rgba(40,32,16,0.05) inset;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  background: var(--color-paper);
+  border: 2px solid var(--color-ink);
+  border-radius: 0;
+  padding: 0.65rem 0.8rem;
+  transition: box-shadow 0.1s ease, background 0.12s ease;
 }
-.field::placeholder { color: #b3a88f; }
+.field::placeholder { color: var(--color-ink-faint); }
 .field:focus {
   outline: none;
-  border-color: var(--color-brass);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brass) 22%, transparent);
+  background: var(--color-paper-2);
+  box-shadow: var(--shadow-hard-sm);
 }
 .label {
   display: block;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--color-ink-soft);
+  color: var(--color-ink);
   margin-bottom: 0.4rem;
+}
+
+/* ─── Stamp chip (registry numbers / status marks) ──────────────────────────── */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-stamp);
+  border: 2px solid var(--color-stamp);
+  padding: 0.18rem 0.5rem;
+  border-radius: 0;
+  transform: rotate(-1.5deg);
 }
 
 /* ─── Trophy frame for badges ───────────────────────────────────────────────── */
 .trophy {
   position: relative;
-  background:
-    linear-gradient(180deg, var(--color-parchment-2), var(--color-parchment-3));
-  border: 1px solid var(--color-rule-strong);
-  border-radius: 8px;
+  background: var(--color-paper-2);
+  border: 2px solid var(--color-ink);
+  border-radius: 0;
   padding: 0.85rem;
-  box-shadow: 0 10px 22px -18px rgba(40,32,16,0.6);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-hard-sm);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 .trophy:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 18px 32px -18px rgba(40,32,16,0.72);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--color-ink);
 }
 @media (prefers-reduced-motion: reduce) {
-  .trophy:hover { transform: none; }
+  .trophy:hover { transform: none; box-shadow: var(--shadow-hard-sm); }
 }
 .trophy::after {
   content: "";
   position: absolute;
   inset: 5px;
-  border: 1px solid color-mix(in srgb, var(--color-brass) 35%, transparent);
-  border-radius: 5px;
+  border: 1px solid var(--color-stamp);
+  border-radius: 0;
   pointer-events: none;
 }
 
 /* ─── Status banners ────────────────────────────────────────────────────────── */
-.banner { border-radius: 6px; padding: 0.7rem 0.95rem; font-size: 0.875rem; font-family: var(--font-mono); }
-.banner-ok   { background: color-mix(in srgb, var(--color-forest) 12%, transparent); color: var(--color-forest); border: 1px solid color-mix(in srgb, var(--color-forest) 30%, transparent); }
-.banner-err  { background: color-mix(in srgb, var(--color-oxblood) 10%, transparent); color: var(--color-oxblood); border: 1px solid color-mix(in srgb, var(--color-oxblood) 30%, transparent); }
-.banner-wait { background: var(--color-parchment-3); color: var(--color-ink-soft); border: 1px solid var(--color-rule); }
-.banner-warn { background: color-mix(in srgb, var(--color-amber) 12%, transparent); color: var(--color-amber); border: 1px solid color-mix(in srgb, var(--color-amber) 32%, transparent); }
+.banner {
+  border-radius: 0;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.8125rem;
+  font-family: var(--font-mono);
+  border: 2px solid var(--color-ink);
+  box-shadow: var(--shadow-hard-sm);
+}
+.banner-ok   { background: color-mix(in srgb, var(--color-forest) 16%, var(--color-paper-2)); color: var(--color-forest); }
+.banner-err  { background: color-mix(in srgb, var(--color-stamp) 14%, var(--color-paper-2)); color: var(--color-stamp-deep); }
+.banner-wait { background: var(--color-paper-3); color: var(--color-ink-soft); }
+.banner-warn { background: color-mix(in srgb, var(--color-amber) 16%, var(--color-paper-2)); color: var(--color-amber); }
 
 /* ─── Ledger table ──────────────────────────────────────────────────────────── */
-.ledger { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.ledger { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 .ledger thead th {
   text-align: left;
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.12em;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--color-ink-soft);
-  font-weight: 500;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--color-rule-strong);
+  color: var(--color-ink);
+  padding: 0 0.5rem 0.5rem 0;
+  border-bottom: 2px solid var(--color-ink);
 }
-.ledger tbody td { padding: 0.6rem 0; border-bottom: 1px dashed var(--color-rule); }
-.ledger tbody tr:last-child td { border-bottom: none; }
+.ledger tbody td { padding: 0.55rem 0.5rem 0.55rem 0; border-bottom: 1px solid var(--color-line); }
+.ledger tbody tr:last-child td { border-bottom: 2px solid var(--color-ink); }
 
-/* ─── Tab underline ─────────────────────────────────────────────────────────── */
+/* ─── Tabs: bracketed registry sections ─────────────────────────────────────── */
 .tab {
   position: relative;
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.02rem;
-  letter-spacing: -0.01em;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
   color: var(--color-ink-soft);
-  padding: 0.55rem 0.2rem;
+  padding: 0.4rem 0.7rem;
   background: none;
-  border: none;
+  border: 2px solid transparent;
+  border-radius: 0;
   cursor: pointer;
-  transition: color 0.16s ease;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
 }
 .tab:hover { color: var(--color-ink); }
-.tab:focus-visible {
-  outline: 2px solid var(--color-brass);
-  outline-offset: 3px;
-  border-radius: 3px;
-  color: var(--color-ink);
-}
-.tab[data-active="true"] { color: var(--color-ink); }
-.tab[data-active="true"]::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: -1px;
-  height: 3px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--color-brass), var(--color-brass-bright));
+.tab:focus-visible { outline: 2px solid var(--color-stamp); outline-offset: 2px; color: var(--color-ink); }
+.tab[data-active="true"] {
+  color: var(--color-paper-2);
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  box-shadow: var(--shadow-hard-sm);
 }
 
-/* ─── Skeleton loader (parchment shimmer) ───────────────────────────────────── */
+/* ─── Skeleton loader ───────────────────────────────────────────────────────── */
 .skeleton {
   background: linear-gradient(
     90deg,
-    var(--color-parchment-3) 25%,
-    color-mix(in srgb, var(--color-rule) 45%, var(--color-parchment-3)) 50%,
-    var(--color-parchment-3) 75%
+    var(--color-paper-3) 25%,
+    color-mix(in srgb, var(--color-line) 55%, var(--color-paper-3)) 50%,
+    var(--color-paper-3) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
-  border-radius: 5px;
+  border-radius: 0;
+  border: 1px solid var(--color-line);
 }
 @keyframes shimmer {
   from { background-position: 200% 0; }
@@ -269,81 +287,57 @@ body::before {
 .step-num {
   display: grid;
   place-items: center;
-  width: 1.85rem; height: 1.85rem;
-  border-radius: 9999px;
+  width: 2rem; height: 2rem;
+  border-radius: 0;
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 900;
   font-size: 0.95rem;
-  color: var(--color-brass);
-  background: color-mix(in srgb, var(--color-brass) 12%, var(--color-parchment-3));
-  border: 1px solid color-mix(in srgb, var(--color-brass) 38%, transparent);
+  color: var(--color-paper-2);
+  background: var(--color-ink);
+  border: 2px solid var(--color-ink);
 }
 
-/* ─── Entrance animation ────────────────────────────────────────────────────── */
+/* ─── Entrance animation (hard rise, no blur) ───────────────────────────────── */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.rise { opacity: 0; animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.rise { opacity: 0; animation: rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
 
-/* ─── Tab content crossfade ────────────────────────────────────────────────── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(5px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.panel-enter { animation: fadeIn 0.28s ease-out both; }
+.panel-enter { animation: fadeIn 0.22s ease-out both; }
 
-/* ─── Banner slide-in ──────────────────────────────────────────────────────── */
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(-8px); }
+  from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.banner { animation: slideIn 0.22s ease-out; }
+.banner { animation: slideIn 0.18s ease-out; }
 
 /* ─── Table row stagger ────────────────────────────────────────────────────── */
 @keyframes rowFade {
-  from { opacity: 0; transform: translateX(-6px); }
+  from { opacity: 0; transform: translateX(-5px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-.ledger tbody tr {
-  animation: rowFade 0.3s ease-out both;
-}
-.ledger tbody tr:nth-child(1) { animation-delay: 0.04s; }
-.ledger tbody tr:nth-child(2) { animation-delay: 0.08s; }
-.ledger tbody tr:nth-child(3) { animation-delay: 0.12s; }
-.ledger tbody tr:nth-child(4) { animation-delay: 0.16s; }
-.ledger tbody tr:nth-child(5) { animation-delay: 0.20s; }
+.ledger tbody tr { animation: rowFade 0.26s ease-out both; }
+.ledger tbody tr:nth-child(1) { animation-delay: 0.03s; }
+.ledger tbody tr:nth-child(2) { animation-delay: 0.06s; }
+.ledger tbody tr:nth-child(3) { animation-delay: 0.09s; }
+.ledger tbody tr:nth-child(4) { animation-delay: 0.12s; }
+.ledger tbody tr:nth-child(5) { animation-delay: 0.15s; }
 
-/* ─── Button brass shimmer on press ────────────────────────────────────────── */
-.btn-primary { position: relative; overflow: hidden; }
-.btn-primary::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%);
-  transform: translateX(-100%);
-  transition: transform 0.4s ease;
-  pointer-events: none;
-}
-.btn-primary:active::after { transform: translateX(100%); }
-
-/* ─── Badge trophy hover glow ──────────────────────────────────────────────── */
-.trophy:hover::after {
-  border-color: color-mix(in srgb, var(--color-brass) 55%, transparent);
-  box-shadow: 0 0 14px -4px color-mix(in srgb, var(--color-brass) 40%, transparent);
-}
-
-/* ─── Balance counter reveal ───────────────────────────────────────────────── */
+/* ─── Balance counter reveal (hard stamp-in) ───────────────────────────────── */
 @keyframes countUp {
-  from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
-  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-.balance-reveal { animation: countUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.balance-reveal { animation: countUp 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {
   .rise, .panel-enter, .balance-reveal { animation: none; opacity: 1; }
   .banner { animation: none; }
   .ledger tbody tr { animation: none; opacity: 1; }
-  .btn-primary::after { display: none; }
   html { scroll-behavior: auto; }
 }
