@@ -115,7 +115,33 @@ const Icon = {
       <path d="M4 12h15" /><path d="M13 6l6 6-6 6" />
     </svg>
   ),
+  copy: (p) => (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <rect x="9" y="9" width="11" height="11" rx="0" /><path d="M5 15V5a1 1 0 0 1 1-1h9" />
+    </svg>
+  ),
+  check: (p) => (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M4 12.5l5 5L20 6" />
+    </svg>
+  ),
 };
+
+// Click-to-copy address chip — practical for the live demo
+function CopyBtn({ value }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => { navigator.clipboard?.writeText(value); setDone(true); setTimeout(() => setDone(false), 1200); }}
+      className="shrink-0 text-ink-soft hover:text-stamp transition-colors"
+      aria-label={`Copy ${value}`}
+      title="Copy full address"
+    >
+      {done ? <Icon.check className="w-4 h-4 text-forest" /> : <Icon.copy className="w-4 h-4" />}
+    </button>
+  );
+}
 
 // Laurel-wreath brand mark — two symmetric sprigs meeting at the base,
 // with a small star crowning the centre. stroke = currentColor.
@@ -419,28 +445,27 @@ function InstructorPanel({ signer, provider, refreshKey, onMinted }) {
             <label htmlFor="inst-student" className="label">Student wallet address</label>
             <input id="inst-student" value={student} onChange={(e) => setStudent(e.target.value)} placeholder="0x…" className="field" />
           </div>
-          <div>
-            <label className="label">Evidence file → IPFS</label>
-            {ipfsConfigured() ? (
-              <label className={`flex items-center gap-3 cursor-pointer field ${uploading ? "opacity-60" : ""}`}>
-                <span className="btn btn-ghost px-3 py-1 text-xs">{uploading ? "Pinning…" : "Choose file"}</span>
-                <span className="text-xs text-ink-soft font-sans">
-                  {activityRef && looksLikeCid(activityRef) ? `Pinned · ${activityRef.slice(0, 12)}…` : "Upload proof — CID fills the reference below"}
-                </span>
-                <input type="file" aria-label="Upload evidence file to IPFS" className="hidden" onChange={handleFile} disabled={uploading} />
-              </label>
-            ) : (
-              <p className="text-xs text-ink-soft font-mono">IPFS upload off — set VITE_PINATA_JWT to enable. Enter a reference manually below.</p>
-            )}
-          </div>
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <label htmlFor="inst-amount" className="label">Amount (SCT)</label>
+            <div className="sm:w-36">
+              <label htmlFor="inst-amount" className="label">Amount · SCT</label>
               <input id="inst-amount" type="number" min="1" step="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="field" />
             </div>
             <div className="flex-1">
-              <label htmlFor="inst-ref" className="label">Activity ref / CID</label>
-              <input id="inst-ref" value={activityRef} onChange={(e) => setActivityRef(e.target.value)} placeholder="event-001 or IPFS CID" className="field" />
+              <label htmlFor="inst-ref" className="label">Activity reference</label>
+              <div className="flex gap-2">
+                <input id="inst-ref" value={activityRef} onChange={(e) => setActivityRef(e.target.value)} placeholder="event-001 or IPFS CID" className="field flex-1" />
+                {ipfsConfigured() && (
+                  <label className={`btn btn-ghost px-3 flex items-center cursor-pointer whitespace-nowrap ${uploading ? "opacity-60" : ""}`}>
+                    {uploading ? "Pinning…" : "Attach"}
+                    <input type="file" aria-label="Upload evidence file to IPFS" className="hidden" onChange={handleFile} disabled={uploading} />
+                  </label>
+                )}
+              </div>
+              <p className="text-[0.7rem] text-ink-soft mt-1.5">
+                {ipfsConfigured()
+                  ? "Attach a proof file — it pins to IPFS and fills the CID."
+                  : "IPFS off — set VITE_PINATA_JWT to enable file attach."}
+              </p>
             </div>
           </div>
           <button type="submit" disabled={busy} className="btn btn-primary w-full py-3">
@@ -536,9 +561,12 @@ function AdminPanel({ signer, provider, account }) {
         <p className="text-sm text-ink-soft mb-5">Deployed on {NETWORK_NAME} · chainId {addresses.chainId}</p>
         <div>
           {rows.map(({ label, addr }) => (
-            <div key={label} className="flex justify-between items-center gap-4 py-2.5 border-b border-dashed border-rule last:border-0">
-              <span className="text-sm text-ink-soft shrink-0">{label}</span>
-              <span className="font-mono text-xs text-ink break-all text-right">{addr}</span>
+            <div key={label} className="flex justify-between items-center gap-4 py-2.5 border-b border-line last:border-0">
+              <span className="text-xs uppercase tracking-wider text-ink-soft shrink-0">{label}</span>
+              <span className="flex items-center gap-2.5">
+                <code className="font-mono text-xs text-ink">{shortAddr(addr)}</code>
+                <CopyBtn value={addr} />
+              </span>
             </div>
           ))}
         </div>
@@ -551,8 +579,10 @@ function AdminPanel({ signer, provider, account }) {
           <button onClick={checkRole} className="btn btn-ghost px-5">Check</button>
         </div>
         {isInstructor !== null && (
-          <p className={`text-sm font-mono mb-4 ${isInstructor ? "text-forest" : "text-oxblood"}`}>
-            {isInstructor ? "✓ Holds INSTRUCTOR_ROLE" : "✕ Does not hold INSTRUCTOR_ROLE"}
+          <p className="mb-4">
+            <span className={`stamp ${isInstructor ? "stamp--ok" : ""}`}>
+              {isInstructor ? "Holds INSTRUCTOR_ROLE" : "No INSTRUCTOR_ROLE"}
+            </span>
           </p>
         )}
         <div className="flex gap-3">

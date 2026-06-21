@@ -180,6 +180,7 @@ body::before {
   border-radius: 0;
   transform: rotate(-1.5deg);
 }
+.stamp--ok { color: var(--color-forest); border-color: var(--color-forest); }
 
 /* ─── Trophy frame for badges ───────────────────────────────────────────────── */
 .trophy {
