@@ -34,9 +34,22 @@ const NETWORK_NAME =
     : `chainId ${addresses.chainId}`;
 const INSTRUCTOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("INSTRUCTOR_ROLE"));
 
-// Public testnet RPCs cap eth_getLogs block range (Amoy ≈ 100 blocks).
-// queryFilter over a wide range fails, so we walk it in chunks.
-const LOG_CHUNK = 100;
+// RPCs cap eth_getLogs block range. The default public Amoy RPC allows only
+// ~100 blocks; drpc.org allows up to 10k — so we walk the range in chunks sized
+// to whatever the read RPC permits.
+const LOG_CHUNK = addresses.chainId === 31337 ? 50000 : 9000;
+
+// Dedicated read-only provider. All view data (balances, roles, events) is read
+// through a reliable RPC rather than MetaMask's wallet RPC — on Amoy MetaMask
+// often uses the flaky public endpoint, which makes reads fail and every wallet
+// look like a role-less student. drpc serves both eth_call and wide getLogs.
+// MetaMask (the signer) is used only to send transactions.
+const READ_RPC = addresses.chainId === 31337
+  ? "http://127.0.0.1:8545"
+  : "https://polygon-amoy.drpc.org";
+// batchMaxCount:1 — send each call on its own. drpc (and several public RPCs)
+// reject JSON-RPC batch arrays, which would otherwise fail every read at once.
+const readProvider = new ethers.JsonRpcProvider(READ_RPC, undefined, { staticNetwork: true, batchMaxCount: 1 });
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function shortAddr(addr) {
@@ -175,18 +188,14 @@ function StatsStrip() {
   useEffect(() => {
     (async () => {
       try {
-        const rpc = addresses.chainId === 31337
-          ? "http://127.0.0.1:8545"
-          : "https://rpc-amoy.polygon.technology";
-        const p = new ethers.JsonRpcProvider(rpc);
-        const token = new ethers.Contract(addresses.successToken, successTokenAbi, p);
-        const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, p);
-        const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, p);
+        const token = new ethers.Contract(addresses.successToken, successTokenAbi, readProvider);
+        const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, readProvider);
+        const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
 
         const [supply, minted, events] = await Promise.all([
           token.totalSupply(),
           badge.totalMinted(),
-          queryLogsChunked(manager, manager.filters.ActivityApproved(), p, addresses.deployBlock),
+          queryLogsChunked(manager, manager.filters.ActivityApproved(), readProvider, addresses.deployBlock),
         ]);
         setStats({
           sct: Math.round(Number(ethers.formatEther(supply))),
@@ -234,18 +243,18 @@ function StudentPanel({ account, provider, refreshKey }) {
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
-    if (!provider || !account) return;
+    if (!account) return;
     setLoading(true);
     setError(null);
     try {
-      const token = new ethers.Contract(addresses.successToken, successTokenAbi, provider);
+      const token = new ethers.Contract(addresses.successToken, successTokenAbi, readProvider);
       const bal = await token.balanceOf(account);
       setBalance(ethers.formatEther(bal));
 
       // Fetch ActivityApproved events for this student
-      const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, provider);
+      const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
       const filter = manager.filters.ActivityApproved(null, account);
-      const events = await queryLogsChunked(manager, filter, provider, addresses.deployBlock);
+      const events = await queryLogsChunked(manager, filter, readProvider, addresses.deployBlock);
       const parsed = events.map((e) => ({
         instructor: shortAddr(e.args.instructor),
         amount: ethers.formatEther(e.args.amount),
@@ -256,11 +265,11 @@ function StudentPanel({ account, provider, refreshKey }) {
 
       // Fetch earned badges via BadgeMinted events for this student
       if (addresses.achievementBadge) {
-        const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, provider);
+        const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, readProvider);
         const badgeEvents = await queryLogsChunked(
           badge,
           badge.filters.BadgeMinted(account),
-          provider,
+          readProvider,
           addresses.deployBlock
         );
         const parsedBadges = await Promise.all(
@@ -287,7 +296,7 @@ function StudentPanel({ account, provider, refreshKey }) {
       setError("Couldn't read the ledger. Check your network connection and try Refresh.");
     }
     setLoading(false);
-  }, [provider, account]);
+  }, [account]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
@@ -399,8 +408,8 @@ function InstructorPanel({ signer, provider, refreshKey, onMinted }) {
   const loadRecent = useCallback(async () => {
     if (!provider) return;
     try {
-      const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, provider);
-      const events = await queryLogsChunked(manager, manager.filters.ActivityApproved(), provider, addresses.deployBlock);
+      const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
+      const events = await queryLogsChunked(manager, manager.filters.ActivityApproved(), readProvider, addresses.deployBlock);
       setRecent(events.slice(-5).reverse().map((e) => ({
         student: shortAddr(e.args.student),
         amount: ethers.formatEther(e.args.amount),
@@ -510,9 +519,9 @@ function AdminPanel({ signer, provider, account }) {
   const [isInstructor, setIsInstructor] = useState(null);
 
   const checkRole = async () => {
-    if (!ethers.isAddress(target) || !provider) return;
+    if (!ethers.isAddress(target)) return;
     try {
-      const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, provider);
+      const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
       const has = await manager.hasRole(INSTRUCTOR_ROLE, target);
       setIsInstructor(has);
     } catch (_) { setIsInstructor(null); }
@@ -645,7 +654,7 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, provider);
+        const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
         const [isAdmin, isInstructor] = await Promise.all([
           manager.hasRole(ethers.ZeroHash, account), // DEFAULT_ADMIN_ROLE = 0x00…00
           manager.hasRole(INSTRUCTOR_ROLE, account),
