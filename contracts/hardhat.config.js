@@ -35,19 +35,9 @@ module.exports = {
       accounts: [DEPLOYER_PRIVATE_KEY],
     },
   },
+  // Etherscan V2 unified API: a single key works across all chains (incl. Amoy).
+  // V1 per-chain endpoints (api-amoy.polygonscan.com) were retired May 2025.
   etherscan: {
-    apiKey: {
-      polygonAmoy: process.env.POLYGONSCAN_API_KEY || "",
-    },
-    customChains: [
-      {
-        network: "polygonAmoy",
-        chainId: 80002,
-        urls: {
-          apiURL: "https://api-amoy.polygonscan.com/api",
-          browserURL: "https://amoy.polygonscan.com",
-        },
-      },
-    ],
+    apiKey: process.env.POLYGONSCAN_API_KEY || "",
   },
 };
