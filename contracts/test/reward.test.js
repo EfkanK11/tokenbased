@@ -8,18 +8,15 @@ describe("Token-Based Success Award System", function () {
   const INSTRUCTOR_ROLE = ethers.keccak256(
     ethers.toUtf8Bytes("INSTRUCTOR_ROLE")
   );
-  const REWARD = ethers.parseEther("10"); // 10 SCT
+  const REWARD = ethers.parseEther("10");
 
-  // Fresh deploy before each test → isolated state
   beforeEach(async function () {
     [admin, instructor, student, outsider] = await ethers.getSigners();
 
-    // 1. Deploy SuccessToken, admin is temporary owner
     const SuccessToken = await ethers.getContractFactory("SuccessToken");
     successToken = await SuccessToken.deploy(admin.address);
     await successToken.waitForDeployment();
 
-    // 2. Deploy RewardManager pointing at the token, admin holds admin role
     const RewardManager = await ethers.getContractFactory("RewardManager");
     rewardManager = await RewardManager.deploy(
       await successToken.getAddress(),
@@ -27,17 +24,14 @@ describe("Token-Based Success Award System", function () {
     );
     await rewardManager.waitForDeployment();
 
-    // 3. Transfer token ownership to RewardManager → only it can mint
     await successToken.transferOwnership(await rewardManager.getAddress());
 
-    // 4. Deploy AchievementBadge, hand ownership to RewardManager, wire it
     const AchievementBadge = await ethers.getContractFactory("AchievementBadge");
     achievementBadge = await AchievementBadge.deploy(admin.address);
     await achievementBadge.waitForDeployment();
     await achievementBadge.transferOwnership(await rewardManager.getAddress());
     await rewardManager.setAchievementBadge(await achievementBadge.getAddress());
 
-    // 5. Admin grants INSTRUCTOR_ROLE to the instructor account
     await rewardManager.grantRole(INSTRUCTOR_ROLE, instructor.address);
   });
 
@@ -99,13 +93,13 @@ describe("Token-Based Success Award System", function () {
         rewardManager
           .connect(outsider)
           .approveActivity(student.address, REWARD, "event-001")
-      ).to.be.reverted; // missing INSTRUCTOR_ROLE
+      ).to.be.reverted;
     });
 
     it("reverts direct mint by anyone other than the owner", async function () {
       await expect(
         successToken.connect(instructor).mint(student.address, REWARD)
-      ).to.be.reverted; // RewardManager is owner, instructor is not
+      ).to.be.reverted;
     });
 
     it("admin can revoke INSTRUCTOR_ROLE → instructor loses access", async function () {
@@ -146,7 +140,6 @@ describe("Token-Based Success Award System", function () {
   });
 
   describe("Achievement badges (ERC-721)", function () {
-    // Helper: approve `amount` SCT to the student in one activity
     function award(amount) {
       return rewardManager
         .connect(instructor)
@@ -183,7 +176,7 @@ describe("Token-Based Success Award System", function () {
 
     it("tracks cumulative earnings across approvals", async function () {
       await award("30");
-      await award("30"); // cumulative 60 → crosses 50
+      await award("30");
       expect(await rewardManager.totalEarned(student.address)).to.equal(
         ethers.parseEther("60")
       );
@@ -191,13 +184,13 @@ describe("Token-Based Success Award System", function () {
     });
 
     it("awards multiple badges when a single approval jumps tiers", async function () {
-      await award("200"); // crosses 50, 100, and 200 at once
+      await award("200");
       expect(await achievementBadge.balanceOf(student.address)).to.equal(3n);
     });
 
     it("never awards the same milestone twice", async function () {
       await award("50");
-      await award("50"); // cumulative 100 → only the 100 tier is new
+      await award("50");
       expect(await achievementBadge.balanceOf(student.address)).to.equal(2n);
     });
 
@@ -208,7 +201,6 @@ describe("Token-Based Success Award System", function () {
     });
 
     it("skips badge minting when no badge contract is wired", async function () {
-      // Isolated stack with NO badge wired: token minting must still work.
       const SuccessToken = await ethers.getContractFactory("SuccessToken");
       const token2 = await SuccessToken.deploy(admin.address);
       await token2.waitForDeployment();
@@ -222,7 +214,6 @@ describe("Token-Based Success Award System", function () {
       await token2.transferOwnership(await mgr2.getAddress());
       await mgr2.grantRole(INSTRUCTOR_ROLE, instructor.address);
 
-      // No setAchievementBadge → milestone logic is a no-op, mint still works
       await mgr2
         .connect(instructor)
         .approveActivity(student.address, ethers.parseEther("100"), "act");

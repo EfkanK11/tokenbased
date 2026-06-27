@@ -1,24 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* ─── Design tokens: "Laurel Registry" — brutalist official document ──────────── */
 @theme {
-  --color-paper:        #e7e2d3;  /* page (bone) */
-  --color-paper-2:      #f4f1e7;  /* cards (light bone) */
-  --color-paper-3:      #ddd7c5;  /* insets */
-  --color-ink:          #14120c;  /* near-black — text + rules + borders */
-  --color-ink-soft:     #55503f;  /* muted text */
-  --color-ink-faint:    #8d8773;  /* placeholder */
-  --color-rule:         #14120c;  /* brutalist rules are BLACK */
+  --color-paper:        #e7e2d3;
+  --color-paper-2:      #f4f1e7;
+  --color-paper-3:      #ddd7c5;
+  --color-ink:          #14120c;
+  --color-ink-soft:     #55503f;
+  --color-ink-faint:    #8d8773;
+  --color-rule:         #14120c;
   --color-rule-strong:  #14120c;
-  --color-line:         #c4bda6;  /* faint ledger hairlines */
-  --color-stamp:        #b02a1f;  /* oxblood-red stamp — primary accent */
+  --color-line:         #c4bda6;
+  --color-stamp:        #b02a1f;
   --color-stamp-deep:   #8a1f17;
-  --color-brass:        #9a7b22;  /* retained for badge medallion bits */
+  --color-brass:        #9a7b22;
   --color-brass-bright: #c89a36;
-  --color-forest:       #2f5d3a;  /* token amounts / success */
-  --color-oxblood:      #9b2c24;  /* danger (alias of stamp family) */
-  --color-amber:        #a4691a;  /* warning */
+  --color-forest:       #2f5d3a;
+  --color-oxblood:      #9b2c24;
+  --color-amber:        #a4691a;
 
   --font-display: "Archivo", "Arial Narrow", sans-serif;
   --font-sans:    "IBM Plex Mono", ui-monospace, monospace;
@@ -40,14 +39,12 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   background-color: var(--color-paper);
-  /* faint ledger grid — like a bound registry book */
   background-image:
     repeating-linear-gradient(0deg, transparent 0, transparent 31px, color-mix(in srgb, var(--color-line) 55%, transparent) 31px, color-mix(in srgb, var(--color-line) 55%, transparent) 32px),
     linear-gradient(90deg, color-mix(in srgb, var(--color-line) 70%, transparent) 0 2px, transparent 2px);
   background-position: 0 0, 64px 0;
 }
 
-/* fine paper grain overlay */
 body::before {
   content: "";
   position: fixed;
@@ -59,7 +56,6 @@ body::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* ─── Type helpers ──────────────────────────────────────────────────────────── */
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
@@ -77,7 +73,6 @@ body::before {
   text-transform: uppercase;
 }
 
-/* ─── Paper card: hard-edged registry panel with offset shadow ───────────────── */
 .paper {
   position: relative;
   background: var(--color-paper-2);
@@ -95,7 +90,6 @@ body::before {
   border-bottom: 2px solid var(--color-ink);
 }
 
-/* ─── Laurel stamp seal ─────────────────────────────────────────────────────── */
 .seal {
   display: grid;
   place-items: center;
@@ -108,7 +102,6 @@ body::before {
   transform: rotate(-3deg);
 }
 
-/* ─── Buttons: flat, hard border + offset shadow, press-into-shadow ──────────── */
 .btn {
   font-family: var(--font-mono);
   font-weight: 700;
@@ -135,7 +128,6 @@ body::before {
 .btn-danger { color: var(--color-paper-2); background: var(--color-stamp); border-color: var(--color-ink); }
 .btn-danger:hover:not(:disabled) { background: var(--color-stamp-deep); }
 
-/* ─── Inputs ────────────────────────────────────────────────────────────────── */
 .field {
   width: 100%;
   font-family: var(--font-mono);
@@ -164,7 +156,6 @@ body::before {
   margin-bottom: 0.4rem;
 }
 
-/* ─── Stamp chip (registry numbers / status marks) ──────────────────────────── */
 .stamp {
   display: inline-flex;
   align-items: center;
@@ -182,7 +173,6 @@ body::before {
 }
 .stamp--ok { color: var(--color-forest); border-color: var(--color-forest); }
 
-/* ─── Trophy frame for badges ───────────────────────────────────────────────── */
 .trophy {
   position: relative;
   background: var(--color-paper-2);
@@ -208,7 +198,6 @@ body::before {
   pointer-events: none;
 }
 
-/* ─── Status banners ────────────────────────────────────────────────────────── */
 .banner {
   border-radius: 0;
   padding: 0.65rem 0.9rem;
@@ -222,7 +211,6 @@ body::before {
 .banner-wait { background: var(--color-paper-3); color: var(--color-ink-soft); }
 .banner-warn { background: color-mix(in srgb, var(--color-amber) 16%, var(--color-paper-2)); color: var(--color-amber); }
 
-/* ─── Ledger table ──────────────────────────────────────────────────────────── */
 .ledger { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 .ledger thead th {
   text-align: left;
@@ -238,7 +226,6 @@ body::before {
 .ledger tbody td { padding: 0.55rem 0.5rem 0.55rem 0; border-bottom: 1px solid var(--color-line); }
 .ledger tbody tr:last-child td { border-bottom: 2px solid var(--color-ink); }
 
-/* ─── Tabs: bracketed registry sections ─────────────────────────────────────── */
 .tab {
   position: relative;
   font-family: var(--font-display);
@@ -263,7 +250,6 @@ body::before {
   box-shadow: var(--shadow-hard-sm);
 }
 
-/* ─── Skeleton loader ───────────────────────────────────────────────────────── */
 .skeleton {
   background: linear-gradient(
     90deg,
@@ -284,7 +270,6 @@ body::before {
   .skeleton { animation: none; }
 }
 
-/* ─── Step number chip (landing "how it works") ─────────────────────────────── */
 .step-num {
   display: grid;
   place-items: center;
@@ -298,7 +283,6 @@ body::before {
   border: 2px solid var(--color-ink);
 }
 
-/* ─── Entrance animation (hard rise, no blur) ───────────────────────────────── */
 @keyframes rise {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -317,7 +301,6 @@ body::before {
 }
 .banner { animation: slideIn 0.18s ease-out; }
 
-/* ─── Table row stagger ────────────────────────────────────────────────────── */
 @keyframes rowFade {
   from { opacity: 0; transform: translateX(-5px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -329,7 +312,6 @@ body::before {
 .ledger tbody tr:nth-child(4) { animation-delay: 0.12s; }
 .ledger tbody tr:nth-child(5) { animation-delay: 0.15s; }
 
-/* ─── Balance counter reveal (hard stamp-in) ───────────────────────────────── */
 @keyframes countUp {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0) scale(1); }

@@ -6,42 +6,15 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-/**
- * @title AchievementBadge
- * @dev ERC-721 NFT representing campus achievement milestones.
- *      Only the contract owner (RewardManager) can mint badges.
- *      Badges are awarded automatically when a student crosses an SCT
- *      earning milestone (see RewardManager).
- *
- *      Metadata is generated fully on-chain (base64 data URI), so no IPFS
- *      pin is required for the NFT to render its name, level, and artwork.
- *
- * Project: Token-Based Success Award and Gamification System
- * Developer: Efkan Kasaboğlu (220304023)
- */
 contract AchievementBadge is ERC721, Ownable {
     using Strings for uint256;
 
-    // ─── State ──────────────────────────────────────────────────────────────
-
-    /// @dev Auto-incrementing token id counter (first minted token id = 1)
     uint256 private _nextTokenId = 1;
 
-    /// @notice Milestone level associated with a token id (1, 2, 3, …)
     mapping(uint256 => uint256) public levelOf;
 
-    /// @notice Human-readable badge name for a token id
     mapping(uint256 => string) public nameOf;
 
-    // ─── Events ─────────────────────────────────────────────────────────────
-
-    /**
-     * @notice Emitted when a new achievement badge is minted.
-     * @param student  Wallet receiving the badge.
-     * @param tokenId  Newly minted token id.
-     * @param level    Milestone level of the badge.
-     * @param name     Human-readable badge name.
-     */
     event BadgeMinted(
         address indexed student,
         uint256 indexed tokenId,
@@ -49,27 +22,11 @@ contract AchievementBadge is ERC721, Ownable {
         string name
     );
 
-    // ─── Constructor ────────────────────────────────────────────────────────
-
-    /**
-     * @param initialOwner Address that will own this contract (transferred to
-     *        RewardManager after deployment so only it can mint).
-     */
     constructor(address initialOwner)
         ERC721("Campus Achievement Badge", "BADGE")
         Ownable(initialOwner)
     {}
 
-    // ─── Mint ───────────────────────────────────────────────────────────────
-
-    /**
-     * @notice Mint an achievement badge to `student`.
-     * @dev Can only be called by the owner (RewardManager).
-     * @param student Wallet address receiving the badge.
-     * @param level   Milestone level (1, 2, 3, …).
-     * @param name    Human-readable badge name.
-     * @return tokenId The id of the freshly minted token.
-     */
     function mint(
         address student,
         uint256 level,
@@ -87,17 +44,10 @@ contract AchievementBadge is ERC721, Ownable {
         emit BadgeMinted(student, tokenId, level, name);
     }
 
-    // ─── Views ──────────────────────────────────────────────────────────────
-
-    /// @notice Total number of badges minted so far.
     function totalMinted() external view returns (uint256) {
         return _nextTokenId - 1;
     }
 
-    /**
-     * @notice On-chain ERC-721 metadata as a base64-encoded data URI.
-     * @dev Builds JSON (with an inline SVG image) without any external host.
-     */
     function tokenURI(uint256 tokenId)
         public
         view
@@ -129,24 +79,16 @@ contract AchievementBadge is ERC721, Ownable {
         );
     }
 
-    // ─── Internal ───────────────────────────────────────────────────────────
-
-    /// @dev Tier palette so each milestone level reads as a distinct metal:
-    ///      L1 bronze, L2 silver, L3+ gold. Returns (main, dark) hex colors.
     function _palette(uint256 level)
         internal
         pure
         returns (string memory main, string memory dark)
     {
-        if (level >= 3) return ("#d9b13b", "#9c7611"); // gold
-        if (level == 2) return ("#8c9197", "#5a5f66"); // silver
-        return ("#b5733a", "#8a4f24");                 // bronze (L1 + default)
+        if (level >= 3) return ("#d9b13b", "#9c7611");
+        if (level == 2) return ("#8c9197", "#5a5f66");
+        return ("#b5733a", "#8a4f24");
     }
 
-    /// @dev Builds an inline SVG medal in the "Laurel" brand palette
-    ///      (parchment + ink) with a tier-colored medallion (bronze/silver/gold).
-    ///      Fully on-chain, no external fonts/hosts. Split into _svgTop/_svgBottom
-    ///      to keep each frame shallow enough to avoid "stack too deep".
     function _svg(string memory name, uint256 level)
         internal
         pure
@@ -161,7 +103,6 @@ contract AchievementBadge is ERC721, Ownable {
         );
     }
 
-    /// @dev Frame + tier-colored star medallion centred at (200,168).
     function _svgTop(string memory main, string memory dark)
         internal
         pure
@@ -180,7 +121,6 @@ contract AchievementBadge is ERC721, Ownable {
         );
     }
 
-    /// @dev Level digit in the medal + badge name + caption.
     function _svgBottom(string memory name, string memory lvl, string memory main)
         internal
         pure

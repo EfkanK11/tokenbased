@@ -6,7 +6,6 @@ import rewardManagerAbi from "./contracts/RewardManager.abi.json";
 import achievementBadgeAbi from "./contracts/AchievementBadge.abi.json";
 import { uploadToIPFS, ipfsConfigured, ipfsUrl, looksLikeCid } from "./ipfs";
 
-// ─── Animated count-up hook (no deps — pure rAF) ────────────────────────────
 function useCountUp(target, duration = 1200) {
   const [value, setValue] = useState(0);
   const started = useRef(false);
@@ -34,29 +33,17 @@ const NETWORK_NAME =
     : `chainId ${addresses.chainId}`;
 const INSTRUCTOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("INSTRUCTOR_ROLE"));
 
-// RPCs cap eth_getLogs block range. The default public Amoy RPC allows only
-// ~100 blocks; drpc.org allows up to 10k — so we walk the range in chunks sized
-// to whatever the read RPC permits.
 const LOG_CHUNK = addresses.chainId === 31337 ? 50000 : 9000;
 
-// Dedicated read-only provider. All view data (balances, roles, events) is read
-// through a reliable RPC rather than MetaMask's wallet RPC — on Amoy MetaMask
-// often uses the flaky public endpoint, which makes reads fail and every wallet
-// look like a role-less student. drpc serves both eth_call and wide getLogs.
-// MetaMask (the signer) is used only to send transactions.
 const READ_RPC = addresses.chainId === 31337
   ? "http://127.0.0.1:8545"
   : "https://polygon-amoy.drpc.org";
-// batchMaxCount:1 — send each call on its own. drpc (and several public RPCs)
-// reject JSON-RPC batch arrays, which would otherwise fail every read at once.
 const readProvider = new ethers.JsonRpcProvider(READ_RPC, undefined, { staticNetwork: true, batchMaxCount: 1 });
 
-// ─── helpers ────────────────────────────────────────────────────────────────
 function shortAddr(addr) {
   return addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "";
 }
 
-// Map raw wallet/contract errors to a readable message for non-technical users.
 function friendlyError(err) {
   const raw = (err?.reason || err?.shortMessage || err?.message || "").toLowerCase();
   if (err?.code === "ACTION_REJECTED" || raw.includes("user rejected") || raw.includes("user denied"))
@@ -70,8 +57,6 @@ function friendlyError(err) {
   return err?.reason || err?.shortMessage || err?.message || "Transaction failed.";
 }
 
-// Render an on-chain activity reference: a clickable IPFS link when it's a CID,
-// otherwise plain text.
 function RefCell({ value }) {
   if (looksLikeCid(value)) {
     const clean = value.replace(/^ipfs:\/\//, "");
@@ -84,7 +69,6 @@ function RefCell({ value }) {
   return <span className="text-ink font-medium">{value}</span>;
 }
 
-// Query a contract event over [fromBlock, latest] in RPC-safe chunks.
 async function queryLogsChunked(contract, filter, provider, fromBlock) {
   const latest = await provider.getBlockNumber();
   const start = fromBlock ?? 0;
@@ -94,14 +78,11 @@ async function queryLogsChunked(contract, filter, provider, fromBlock) {
     try {
       const ev = await contract.queryFilter(filter, from, to);
       if (ev.length) all.push(...ev);
-    } catch (_) {
-      // skip a window the RPC rejects; keep scanning the rest
-    }
+    } catch (_) {}
   }
   return all;
 }
 
-// ─── tiny inline icon set (stroke = currentColor) ────────────────────────────
 const Icon = {
   cap: (p) => (
     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}>
@@ -140,7 +121,6 @@ const Icon = {
   ),
 };
 
-// Click-to-copy address chip — practical for the live demo
 function CopyBtn({ value }) {
   const [done, setDone] = useState(false);
   return (
@@ -156,8 +136,6 @@ function CopyBtn({ value }) {
   );
 }
 
-// Laurel-wreath brand mark — two symmetric sprigs meeting at the base,
-// with a small star crowning the centre. stroke = currentColor.
 function LaurelMark({ className }) {
   return (
     <svg viewBox="0 0 48 48" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -174,14 +152,12 @@ function LaurelMark({ className }) {
   );
 }
 
-// Landing "how it works" steps — Approve → Mint → Own.
 const STEPS = [
   { icon: Icon.quill, title: "Approve", sub: "Instructor seals" },
   { icon: Icon.coin, title: "Mint", sub: "Auto on-chain" },
   { icon: Icon.cap, title: "Own", sub: "In your wallet" },
 ];
 
-// ─── Landing stats strip — reads chain without wallet ───────────────────────
 function StatsStrip() {
   const [stats, setStats] = useState({ sct: 0, badges: 0, activities: 0 });
 
@@ -233,8 +209,6 @@ function StatsStrip() {
   );
 }
 
-// ─── Sub-panels ─────────────────────────────────────────────────────────────
-
 function StudentPanel({ account, provider, refreshKey }) {
   const [balance, setBalance] = useState("0");
   const [history, setHistory] = useState([]);
@@ -251,7 +225,6 @@ function StudentPanel({ account, provider, refreshKey }) {
       const bal = await token.balanceOf(account);
       setBalance(ethers.formatEther(bal));
 
-      // Fetch ActivityApproved events for this student
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
       const filter = manager.filters.ActivityApproved(null, account);
       const events = await queryLogsChunked(manager, filter, readProvider, addresses.deployBlock);
@@ -263,7 +236,6 @@ function StudentPanel({ account, provider, refreshKey }) {
       }));
       setHistory(parsed.reverse());
 
-      // Fetch earned badges via BadgeMinted events for this student
       if (addresses.achievementBadge) {
         const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, readProvider);
         const badgeEvents = await queryLogsChunked(
@@ -278,9 +250,8 @@ function StudentPanel({ account, provider, refreshKey }) {
             let svg = null;
             try {
               const uri = await badge.tokenURI(tokenId);
-              // uri = data:application/json;base64,...
               const json = JSON.parse(atob(uri.split(",")[1]));
-              svg = json.image; // data:image/svg+xml;base64,...
+              svg = json.image;
             } catch (_) {}
             return {
               tokenId: tokenId.toString(),
@@ -304,7 +275,6 @@ function StudentPanel({ account, provider, refreshKey }) {
     <div className="space-y-6">
       {error && <div className="banner banner-err rise">{error}</div>}
 
-      {/* Balance — minted-coin hero */}
       <div className="paper paper--ruled p-7 rise" style={{ animationDelay: "0.02s" }}>
         <p className="eyebrow mb-3">Token of Account · Balance</p>
         {loading ? (
@@ -318,7 +288,6 @@ function StudentPanel({ account, provider, refreshKey }) {
         <p className="mt-4 font-mono text-xs text-ink-soft break-all">{account}</p>
       </div>
 
-      {/* Achievement Badges */}
       <div className="paper p-6 rise" style={{ animationDelay: "0.08s" }}>
         <div className="flex items-baseline justify-between mb-1">
           <h2 className="display text-xl font-semibold text-ink">Hall of Honors</h2>
@@ -348,7 +317,6 @@ function StudentPanel({ account, provider, refreshKey }) {
         )}
       </div>
 
-      {/* Activity history */}
       <div className="paper p-6 rise" style={{ animationDelay: "0.14s" }}>
         <h2 className="display text-xl font-semibold text-ink mb-4">Register of Activities</h2>
         {loading ? (
@@ -383,7 +351,7 @@ function InstructorPanel({ signer, provider, refreshKey, onMinted }) {
   const [student, setStudent] = useState("");
   const [amount, setAmount] = useState("10");
   const [activityRef, setActivityRef] = useState("");
-  const [status, setStatus] = useState(null); // {type: 'ok'|'err'|'pending', msg}
+  const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const [recent, setRecent] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -608,7 +576,6 @@ function AdminPanel({ signer, provider, account }) {
   );
 }
 
-// ─── Main App ────────────────────────────────────────────────────────────────
 const TABS = [
   { id: "Student", icon: Icon.cap },
   { id: "Instructor", icon: Icon.quill },
@@ -621,11 +588,10 @@ export default function App() {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [tab, setTab] = useState("Student");
-  const [role, setRole] = useState(null); // 'admin' | 'instructor' | 'student'
+  const [role, setRole] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  // Tabs each role may see — students only their own panel, up to full access for admin
   const ROLE_TABS = { admin: ["Student", "Instructor", "Admin"], instructor: ["Student", "Instructor"], student: ["Student"] };
   const allowedTabs = ROLE_TABS[role] || ["Student"];
   const visibleTabs = TABS.filter((t) => allowedTabs.includes(t.id));
@@ -648,7 +614,6 @@ export default function App() {
     window.ethereum.on("chainChanged", () => window.location.reload());
   }, []);
 
-  // Detect the connected wallet's on-chain role to scope which panels it can reach
   useEffect(() => {
     if (!account || !provider || !chainOk) { setRole(null); return; }
     let cancelled = false;
@@ -656,7 +621,7 @@ export default function App() {
       try {
         const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
         const [isAdmin, isInstructor] = await Promise.all([
-          manager.hasRole(ethers.ZeroHash, account), // DEFAULT_ADMIN_ROLE = 0x00…00
+          manager.hasRole(ethers.ZeroHash, account),
           manager.hasRole(INSTRUCTOR_ROLE, account),
         ]);
         if (!cancelled) setRole(isAdmin ? "admin" : isInstructor ? "instructor" : "student");
@@ -667,14 +632,12 @@ export default function App() {
     return () => { cancelled = true; };
   }, [account, provider, chainOk]);
 
-  // If the active tab is no longer permitted for this role, fall back to Student
   useEffect(() => {
     if (role && !allowedTabs.includes(tab)) setTab("Student");
   }, [role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="relative min-h-screen" style={{ zIndex: 1 }}>
-      {/* Header */}
       <header className="sticky top-0 z-10 border-b border-rule-strong" style={{ background: "color-mix(in srgb, var(--color-parchment) 88%, transparent)", backdropFilter: "blur(8px)" }}>
         <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
@@ -683,7 +646,6 @@ export default function App() {
           </div>
           {account ? (
             <div className="flex items-center gap-2 sm:gap-2.5">
-              {/* network badge — reflects whether the wallet is on the right chain */}
               <span
                 className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-mono border ${
                   chainOk ? "border-rule-strong text-ink-soft" : "border-oxblood text-oxblood"
@@ -727,10 +689,8 @@ export default function App() {
               <button onClick={connect} className="btn btn-primary px-8 py-3.5">Connect MetaMask</button>
             </div>
 
-            {/* On-chain stats — live from blockchain */}
             <StatsStrip />
 
-            {/* How it works — Approve → Mint → Own */}
             <div className="pb-16">
               <p className="eyebrow text-center mb-8">How the ledger works</p>
               <div className="flex flex-col sm:flex-row items-stretch justify-center gap-3 max-w-3xl mx-auto">
@@ -765,7 +725,6 @@ export default function App() {
             </div>
           ) : (
             <>
-              {/* Tab bar — ledger tabs */}
               <div className="flex items-center gap-5 sm:gap-7 mb-8 border-b border-rule-strong rise">
                 {visibleTabs.map(({ id, icon: TabIcon }) => (
                   <button key={id} className="tab flex items-center gap-2" data-active={tab === id} onClick={() => setTab(id)}>

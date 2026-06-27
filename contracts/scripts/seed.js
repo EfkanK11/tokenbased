@@ -1,6 +1,3 @@
-// Demo seed: approve a few activities for the student account so the
-// Student panel shows balance, history, and auto-minted badges.
-// Localhost only. Run after deploy.js against the running hardhat node.
 const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
@@ -10,15 +7,13 @@ async function main() {
     fs.readFileSync(path.join(__dirname, "..", "deployments", "localhost.json"))
   );
   const [instructor] = await ethers.getSigners();
-  const STUDENT = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; // Hardhat Account #1
+  const STUDENT = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
   const manager = await ethers.getContractAt(
     "RewardManager",
     deployment.rewardManager
   );
 
-  // Cumulative: 30 -> 55 (L1 Active Member) -> 105 (L2 Star Performer)
-  //          -> 205 (L3 Campus Legend). Shows all three badge tiers.
   const activities = [
     { amount: "30", ref: "workshop-blockchain-101" },
     { amount: "25", ref: "hackathon-spring-2026" },
