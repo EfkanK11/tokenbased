@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    name: Contracts — compile & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Install dependencies
+        working-directory: contracts
+        run: npm ci
+
+      - name: Run tests
+        working-directory: contracts
+        run: npm test
+
+  frontend:
+    name: Frontend — build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  stack:
+    name: Docker stack — end to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Mirrors what a reviewer runs after cloning: one command, no testnet,
+      # no faucet. Fails if the chain cannot deploy or the app cannot serve.
+      - name: Start the stack
+        run: docker compose up -d --build
+
+      - name: Wait for the app to answer
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5173 > /dev/null; then
+              echo "app is serving"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "app did not come up in time"
+          exit 1
+
+      - name: Check the chain deployed and seeded
+        run: |
+          docker compose logs chain | grep -q "chain ready" \
+            || { echo "chain never reported ready"; exit 1; }
+          docker compose logs chain | grep -q "Badges minted: 3" \
+            || { echo "seed data did not mint the expected badges"; exit 1; }
+          echo "chain deployed and seeded"
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

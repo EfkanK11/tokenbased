@@ -1,5 +1,7 @@
 # Laurel — Token-Based Success Award and Gamification System
 
+[![CI](https://github.com/EfkanK11/tokenbased/actions/workflows/ci.yml/badge.svg)](https://github.com/EfkanK11/tokenbased/actions/workflows/ci.yml)
+
 A blockchain reward ledger for campus engagement. Instructors approve student
 activities; smart contracts mint **Success Tokens (SCT, ERC-20)** and automatically
 award **Achievement Badges (ERC-721)** at earning milestones. Badges are
