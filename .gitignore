@@ -8,13 +8,5 @@ coverage.json
 dist/
 node.log
 
-# Local AI assistant config / session notes (not part of the project)
-CLAUDE.md
-.claude/
-.claudeignore
-.agents/
-*.skill
-skills-lock.json
-
 # Personal report drafts (not part of the project source)
 *.docx
