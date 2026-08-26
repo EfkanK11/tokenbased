@@ -31,24 +31,27 @@ runs against the live chain with no configuration.
 ### Option A — Docker (self-contained, recommended)
 
 Brings up a local blockchain with the contracts deployed, roles wired and demo data
-seeded, then serves the app against it. No testnet, no faucet, no test POL.
+seeded, then serves the app against it. No testnet, no faucet, no test POL — Node.js
+does not even need to be installed.
 
 ```bash
 docker compose up --build
 ```
 
-Then open <http://localhost:5173>.
+Then open <http://localhost:5173>. The **Verify** tab works immediately with no
+wallet: paste `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` to see the seeded
+student's tokens and badges.
 
-To approve activities you need the instructor wallet. In MetaMask:
+To approve activities yourself, add the local network in MetaMask — RPC
+`http://127.0.0.1:8545`, chainId `31337`, symbol `ETH` — and import Hardhat account
+#0, which the deploy script grants `INSTRUCTOR_ROLE`:
 
-1. **Add network** — RPC `http://127.0.0.1:8545`, chainId `31337`, symbol `ETH`.
-2. **Import account** — use Hardhat account #0, which the deploy script grants
-   `INSTRUCTOR_ROLE`:
-   ```
-   0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-   ```
-   This is a public, well-known Hardhat test key. It holds no real funds — never
-   reuse it on a public network.
+```
+0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+```
+
+This is a public, well-known Hardhat test key. It holds no real funds — never reuse
+it on a public network.
 
 Stop with `Ctrl+C`; `docker compose down -v` also clears the chain state.
 
@@ -58,14 +61,14 @@ Stop with `Ctrl+C`; `docker compose down -v` also clears the chain state.
 # 1. contracts
 cd contracts
 npm install
-npm test                 # 30 passing
+npm test
 
-# 2. local chain + deploy (terminal 1)
+# 2. local chain (terminal 1)
 npm run node
 
 # 3. deploy + seed (terminal 2)
 npm run deploy:local
-npm run seed:local       # optional demo data
+npm run seed:local
 
 # 4. app (terminal 3)
 cd ../frontend
@@ -74,15 +77,19 @@ npm run dev              # http://localhost:5173
 ```
 
 After a local deploy, copy the addresses from `contracts/deployments/localhost.json`
-into `frontend/src/contracts/addresses.json`.
+into `frontend/src/contracts/addresses.json`. Docker does this step automatically.
 
-> Use the npm scripts rather than `npx hardhat …`. On a machine without a local
-> install, `npx` will try to fetch Hardhat 3.x, which this project does not use.
+> Use the npm scripts rather than `npx hardhat …`. Without a local install, `npx`
+> fetches Hardhat 3.x, which this project does not use.
 
 ### Option C — Just look at the live data
 
-Clone, `cd frontend && npm install && npm run dev`, and open the **Verify** tab. It
-reads the live Amoy contracts — no wallet, no keys, no setup.
+```bash
+cd frontend && npm install && npm run dev
+```
+
+The **Verify** tab reads the live Amoy contracts directly — no local chain, no
+wallet, no keys.
 
 ---
 
@@ -112,6 +119,10 @@ From that point there is exactly one account in the system that can mint anythin
 and it is a contract, not a person. A direct `mint()` call from any wallet — the
 admin's included — reverts with `onlyOwner`.
 
+Roles are enforced on-chain, not in the interface: the app hides panels the wallet
+cannot use, but hiding a button proves nothing, so every entry point checks the
+caller's role itself.
+
 ### Milestones
 
 | Threshold | Badge | Level |
@@ -127,7 +138,7 @@ several thresholds mints several badges.
 
 `AchievementBadge` overrides ERC-721's `_update` hook and reverts when both `from`
 and `to` are non-zero — that is, on a wallet-to-wallet transfer. Minting and burning
-still work.
+still work, so the owner can delete their own badge but can never hand it to anyone.
 
 ERC-5192 itself does not enforce anything; it *declares*. The contract implements
 `locked()`, emits `Locked` on mint, and reports interface id `0xb45a3c0e` so wallets
@@ -145,19 +156,6 @@ on-chain.
 
 ---
 
-## App features
-
-- **Role-aware UI** — the wallet's on-chain role decides which panels it can reach.
-- **Student** — balance, progress to the next milestone, badge gallery, activity register.
-- **Instructor** — approve activities, optional IPFS evidence upload.
-- **Admin** — grant and revoke `INSTRUCTOR_ROLE`, address book.
-- **Honors** — leaderboard ranked by SCT, rebuilt from on-chain events.
-- **Verify** — public, read-only lookup of any address; shareable `?verify=0x…` link.
-- **Badge export** — download any badge as SVG or PNG.
-- **Address book** — local address→name labels, stored in the browser only, never on-chain.
-
----
-
 ## Project structure
 
 ```
@@ -172,13 +170,13 @@ tokenbased/
 │   │   ├── deploy.js                  # deploy, transfer ownership, wire roles
 │   │   ├── seed.js                    # demo activity (local only)
 │   │   └── gas.js                     # measure deploy + operation gas
-│   ├── test/reward.test.js            # 30 unit tests
+│   ├── test/reward.test.js            # unit tests
 │   ├── deployments/                   # addresses written by deploy.js
 │   └── hardhat.config.js
 └── frontend/                     # Vite + React
     └── src/
-        ├── App.jsx                    # all panels
-        ├── labels.js                  # address book (localStorage)
+        ├── App.jsx                    # student, instructor, admin, honors, verify
+        ├── labels.js                  # address book (localStorage only)
         ├── ipfs.js                    # Pinata upload helper
         ├── index.css                  # "Laurel" design system
         └── contracts/                 # addresses.json + ABIs
@@ -212,57 +210,34 @@ cp .env.example .env          # fill in DEPLOYER_PRIVATE_KEY
 npm run deploy:amoy
 ```
 
-Fund the deployer with test POL from a faucet first — the
+Fund the deployer with test POL first — the
 [Google Cloud](https://cloud.google.com/application/web3/faucet/polygon/amoy) or
-[QuickNode](https://faucet.quicknode.com/polygon/amoy) faucets both work. About
-0.2 POL covers a deploy and many approvals.
-
-The script prints ready-to-run `hardhat verify` commands, writes
-`deployments/amoy.json`, and grants the deployer `INSTRUCTOR_ROLE`. Copy the printed
-addresses into `frontend/src/contracts/addresses.json`.
+[QuickNode](https://faucet.quicknode.com/polygon/amoy) faucets both work; ~0.2 POL
+covers a deploy and many approvals. The script prints ready-to-run `hardhat verify`
+commands and grants the deployer `INSTRUCTOR_ROLE`. Copy the printed addresses into
+`frontend/src/contracts/addresses.json`.
 
 > The default Polygon RPC (`rpc-amoy.polygon.technology`) currently fails DNS
-> resolution. The config defaults to `https://polygon-amoy.drpc.org` instead. Note
-> that its free tier caps `eth_getLogs` at 10,000 blocks per request, which is why
-> the app queries logs in chunks.
+> resolution, so the config defaults to `https://polygon-amoy.drpc.org`. Its free
+> tier caps `eth_getLogs` at 10,000 blocks per request, which is why the app queries
+> logs in chunks.
 
 ---
 
 ## Testing
 
 ```bash
-cd contracts
-npm test        # 30 passing
+npm test        # unit tests: access control, milestones, validation, soulbound
 npm run gas     # measured gas for deploy and each operation
 ```
 
-Coverage spans setup and ownership wiring, minting, access control, input
-validation, milestone logic including double-award protection, badge access
-control, and the six soulbound cases.
-
-Measured on the current build (Polygon at ~30 gwei):
+Measured on the deployed build, Polygon at ~30 gwei:
 
 | Operation | Gas | ≈ Cost |
 |---|---|---|
 | Deploy (3 contracts) | 3,763,535 | one-time |
 | Approve activity | 123,478 | ~0.004 POL |
-| Approve + 1 badge | 209,500 | ~0.006 POL |
 | Approve + 3 badges | 450,992 | ~0.014 POL |
-
----
-
-## Getting instructor access on the live contracts
-
-Reading is open to everyone. To *approve* activities on the deployed Amoy stack, an
-address needs `INSTRUCTOR_ROLE`, which only the admin can grant — from the Admin
-panel, or directly:
-
-```
-RewardManager.grantRole(keccak256("INSTRUCTOR_ROLE"), <address>)
-```
-
-Alternatively, run `docker compose up` and use the local chain, where account #0 is
-already an instructor.
 
 ---
 
