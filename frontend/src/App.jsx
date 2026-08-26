@@ -5,6 +5,7 @@ import successTokenAbi from "./contracts/SuccessToken.abi.json";
 import rewardManagerAbi from "./contracts/RewardManager.abi.json";
 import achievementBadgeAbi from "./contracts/AchievementBadge.abi.json";
 import { uploadToIPFS, ipfsConfigured, ipfsUrl, looksLikeCid } from "./ipfs";
+import { nameFor, setLabel, allLabels, subscribeLabels } from "./labels";
 
 function useCountUp(target, duration = 1200) {
   const [value, setValue] = useState(0);
@@ -12,6 +13,10 @@ function useCountUp(target, duration = 1200) {
   useEffect(() => {
     if (target <= 0 || started.current) return;
     started.current = true;
+    if (typeof document !== "undefined" && document.hidden) {
+      setValue(target);
+      return;
+    }
     const start = performance.now();
     const step = (now) => {
       const progress = Math.min((now - start) / duration, 1);
@@ -33,7 +38,69 @@ const NETWORK_NAME =
     : `chainId ${addresses.chainId}`;
 const INSTRUCTOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("INSTRUCTOR_ROLE"));
 
-const LOG_CHUNK = addresses.chainId === 31337 ? 50000 : 9000;
+const MILESTONES = [
+  { threshold: 50, level: 1, name: "Active Member" },
+  { threshold: 100, level: 2, name: "Star Performer" },
+  { threshold: 200, level: 3, name: "Campus Legend" },
+];
+
+function niceNum(n) {
+  return Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+const toastBus = { listeners: new Set() };
+let _toastId = 0;
+function pushToast(type, msg, ttl = 4200) {
+  const id = ++_toastId;
+  toastBus.listeners.forEach((fn) => fn({ kind: "push", toast: { id, type, msg, ttl } }));
+  return id;
+}
+function dismissToast(id) {
+  toastBus.listeners.forEach((fn) => fn({ kind: "dismiss", id }));
+}
+
+function Toaster() {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    const fn = (ev) => {
+      if (ev.kind === "push") {
+        setItems((cur) => [...cur, ev.toast]);
+        if (ev.toast.ttl > 0) {
+          setTimeout(() => setItems((cur) => cur.filter((t) => t.id !== ev.toast.id)), ev.toast.ttl);
+        }
+      } else if (ev.kind === "dismiss") {
+        setItems((cur) => cur.filter((t) => t.id !== ev.id));
+      }
+    };
+    toastBus.listeners.add(fn);
+    return () => toastBus.listeners.delete(fn);
+  }, []);
+
+  const dotColor = (t) =>
+    t === "ok" ? "var(--color-forest)" : t === "err" ? "var(--color-oxblood)" : "var(--color-brass)";
+
+  return (
+    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 w-[min(20rem,calc(100vw-2.5rem))]">
+      {items.map((t) => (
+        <div
+          key={t.id}
+          role="status"
+          className="paper px-4 py-3 shadow-lg flex items-center gap-3 rise"
+          style={{ borderLeft: `3px solid ${dotColor(t.type)}` }}
+        >
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${t.type === "pending" ? "animate-pulse" : ""}`}
+            style={{ background: dotColor(t.type) }}
+          />
+          <span className="text-sm text-ink leading-snug">{t.msg}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const LOG_CHUNK = addresses.chainId === 31337 ? 50000 : 9500;
+const LOG_CONCURRENCY = addresses.chainId === 31337 ? 1 : 16;
 
 const READ_RPC = addresses.chainId === 31337
   ? "http://127.0.0.1:8545"
@@ -42,6 +109,69 @@ const readProvider = new ethers.JsonRpcProvider(READ_RPC, undefined, { staticNet
 
 function shortAddr(addr) {
   return addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "";
+}
+
+function useLabelsVersion() {
+  const [, setV] = useState(0);
+  useEffect(() => subscribeLabels(() => setV((v) => v + 1)), []);
+}
+
+function AddrLabel({ address }) {
+  useLabelsVersion();
+  const name = nameFor(address);
+  if (name) {
+    return (
+      <span title={address}>
+        {name} <span className="text-ink-faint">({shortAddr(address)})</span>
+      </span>
+    );
+  }
+  return <span>{shortAddr(address)}</span>;
+}
+
+function AddressBook() {
+  useLabelsVersion();
+  const [addr, setAddr] = useState("");
+  const [name, setName] = useState("");
+  const entries = allLabels();
+
+  const save = () => {
+    if (!ethers.isAddress(addr.trim())) { pushToast("err", "Invalid address"); return; }
+    if (!name.trim()) { pushToast("err", "Enter a name"); return; }
+    setLabel(addr.trim(), name.trim());
+    pushToast("ok", `Saved ${name.trim()}`);
+    setAddr(""); setName("");
+  };
+
+  return (
+    <div className="paper p-6 rise" style={{ animationDelay: "0.16s" }}>
+      <h2 className="display text-xl font-semibold text-ink mb-1">Address Book</h2>
+      <p className="text-sm text-ink-soft mb-4">Local labels for wallet addresses — stored in this browser only, never on-chain.</p>
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="0x… address" className="field flex-1" aria-label="Address to label" />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Student name" className="field flex-1" aria-label="Name for address" />
+        <button onClick={save} className="btn btn-primary px-5 whitespace-nowrap">Save</button>
+      </div>
+      {entries.length === 0 ? (
+        <p className="text-sm text-ink-soft">No labels yet.</p>
+      ) : (
+        <table className="ledger">
+          <thead>
+            <tr><th>Name</th><th>Address</th><th></th></tr>
+          </thead>
+          <tbody>
+            {entries.map(([a, n]) => (
+              <tr key={a}>
+                <td className="text-ink font-medium">{n}</td>
+                <td className="font-mono text-ink-soft">{shortAddr(a)}</td>
+                <td className="text-right"><button onClick={() => setLabel(a, "")} className="btn btn-ghost px-2 py-1 text-xs">Remove</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
 }
 
 function friendlyError(err) {
@@ -71,16 +201,58 @@ function RefCell({ value }) {
 
 async function queryLogsChunked(contract, filter, provider, fromBlock) {
   const latest = await provider.getBlockNumber();
-  const start = fromBlock ?? 0;
-  const all = [];
+  const start = Math.max(fromBlock ?? 0, 0);
+  const ranges = [];
   for (let from = start; from <= latest; from += LOG_CHUNK) {
-    const to = Math.min(from + LOG_CHUNK - 1, latest);
-    try {
-      const ev = await contract.queryFilter(filter, from, to);
-      if (ev.length) all.push(...ev);
-    } catch (_) {}
+    ranges.push([from, Math.min(from + LOG_CHUNK - 1, latest)]);
   }
+  const all = [];
+  const failed = [];
+  const run = async (list, onFail) => {
+    for (let i = 0; i < list.length; i += LOG_CONCURRENCY) {
+      const batch = list.slice(i, i + LOG_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map(([from, to]) =>
+          contract.queryFilter(filter, from, to).catch(() => {
+            onFail([from, to]);
+            return null;
+          })
+        )
+      );
+      for (const ev of results) if (ev && ev.length) all.push(...ev);
+    }
+  };
+  await run(ranges, (r) => failed.push(r));
+  if (failed.length) await run(failed.splice(0), () => {});
+  all.sort((a, b) => a.blockNumber - b.blockNumber || a.index - b.index);
   return all;
+}
+
+async function badgeOwners(badge) {
+  const minted = Number(await badge.totalMinted());
+  if (!minted) return [];
+  const ids = Array.from({ length: minted }, (_, i) => i + 1);
+  const owners = await Promise.all(ids.map((id) => badge.ownerOf(id).catch(() => null)));
+  return ids.map((id, i) => ({ id, owner: owners[i] })).filter((r) => r.owner);
+}
+
+async function loadBadgesOf(badge, account) {
+  const mine = (await badgeOwners(badge)).filter(
+    (r) => r.owner.toLowerCase() === account.toLowerCase()
+  );
+  return Promise.all(
+    mine.map(async ({ id }) => {
+      const [level, name] = await Promise.all([
+        badge.levelOf(id).catch(() => 0n),
+        badge.nameOf(id).catch(() => ""),
+      ]);
+      let svg = null;
+      try {
+        svg = JSON.parse(atob((await badge.tokenURI(id)).split(",")[1])).image;
+      } catch (_) {}
+      return { tokenId: String(id), level: level.toString(), name, svg };
+    })
+  );
 }
 
 const Icon = {
@@ -168,16 +340,19 @@ function StatsStrip() {
         const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, readProvider);
         const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
 
-        const [supply, minted, events] = await Promise.all([
-          token.totalSupply(),
-          badge.totalMinted(),
-          queryLogsChunked(manager, manager.filters.ActivityApproved(), readProvider, addresses.deployBlock),
+        const [supply, minted] = await Promise.all([
+          token.totalSupply().catch(() => 0n),
+          badge.totalMinted().catch(() => 0n),
         ]);
-        setStats({
+        setStats((s) => ({
+          ...s,
           sct: Math.round(Number(ethers.formatEther(supply))),
           badges: Number(minted),
-          activities: events.length,
-        });
+        }));
+
+        queryLogsChunked(manager, manager.filters.ActivityApproved(), readProvider, addresses.deployBlock)
+          .then((events) => setStats((s) => ({ ...s, activities: events.length })))
+          .catch(() => {});
       } catch (_) {}
     })();
   }, []);
@@ -209,6 +384,96 @@ function StatsStrip() {
   );
 }
 
+function downloadUri(uri, filename) {
+  const a = document.createElement("a");
+  a.href = uri;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function svgUriToPngUri(svgUri, size = 800) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = size;
+      c.height = size;
+      c.getContext("2d").drawImage(img, 0, 0, size, size);
+      resolve(c.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = svgUri;
+  });
+}
+
+function verifyLink(addr) {
+  return `${window.location.origin}${window.location.pathname}?verify=${addr}`;
+}
+
+function BadgeCard({ b }) {
+  const [busy, setBusy] = useState(false);
+  const dlPng = async () => {
+    if (!b.svg) return;
+    try {
+      setBusy(true);
+      downloadUri(await svgUriToPngUri(b.svg), `laurel-badge-${b.tokenId}.png`);
+    } catch (_) {
+      pushToast("err", "Couldn't render PNG");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="trophy flex flex-col items-center gap-2">
+      {b.svg
+        ? <img src={b.svg} alt={b.name} className="w-full rounded-md" />
+        : <div className="w-full aspect-square grid place-items-center text-4xl bg-paper-3 rounded-md text-brass">★</div>}
+      <p className="display text-sm font-semibold text-ink text-center leading-tight">{b.name}</p>
+      <p className="font-mono text-[0.65rem] text-ink-soft">L{b.level} · #{b.tokenId}</p>
+      <span className="stamp text-[0.6rem]" title="Non-transferable (ERC-5192)">🔒 Soulbound</span>
+      {b.svg && (
+        <div className="flex gap-1.5">
+          <button onClick={() => downloadUri(b.svg, `laurel-badge-${b.tokenId}.svg`)} className="btn btn-ghost px-2.5 py-1 text-[0.65rem]">SVG</button>
+          <button onClick={dlPng} disabled={busy} className="btn btn-ghost px-2.5 py-1 text-[0.65rem]">{busy ? "…" : "PNG"}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MilestoneProgress({ balance }) {
+  const bal = Number(balance) || 0;
+  const next = MILESTONES.find((m) => m.threshold > bal);
+  const floor = MILESTONES.filter((m) => m.threshold <= bal).map((m) => m.threshold).pop() || 0;
+  const ceil = next ? next.threshold : floor;
+  const pct = next ? Math.min(100, Math.max(2, Math.round(((bal - floor) / (ceil - floor)) * 100))) : 100;
+  const remaining = next ? next.threshold - bal : 0;
+
+  return (
+    <div className="paper p-6 rise" style={{ animationDelay: "0.05s" }}>
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="eyebrow">{next ? "Progress to next honor" : "Highest honor reached"}</p>
+        <span className="stamp stamp--ok">{next ? next.name : "Campus Legend"}</span>
+      </div>
+      <div className="h-3 rounded-full bg-paper-3 border border-line overflow-hidden">
+        <div className="h-full bg-brass transition-all duration-700 ease-out" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-sm text-ink-soft mt-3">
+        {next ? (
+          <>
+            <span className="font-mono text-ink">{niceNum(bal)}</span> / {next.threshold} SCT ·{" "}
+            <strong className="text-forest">{niceNum(remaining)} SCT</strong> to <strong className="text-ink">{next.name}</strong>
+          </>
+        ) : (
+          <>All three honors earned — <span className="font-mono text-ink">{niceNum(bal)}</span> SCT total.</>
+        )}
+      </p>
+    </div>
+  );
+}
+
 function StudentPanel({ account, provider, refreshKey }) {
   const [balance, setBalance] = useState("0");
   const [history, setHistory] = useState([]);
@@ -224,45 +489,23 @@ function StudentPanel({ account, provider, refreshKey }) {
       const token = new ethers.Contract(addresses.successToken, successTokenAbi, readProvider);
       const bal = await token.balanceOf(account);
       setBalance(ethers.formatEther(bal));
+      setLoading(false);
+
+      if (addresses.achievementBadge) {
+        const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, readProvider);
+        loadBadgesOf(badge, account).then(setBadges).catch(() => {});
+      }
 
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
       const filter = manager.filters.ActivityApproved(null, account);
       const events = await queryLogsChunked(manager, filter, readProvider, addresses.deployBlock);
       const parsed = events.map((e) => ({
-        instructor: shortAddr(e.args.instructor),
+        instructor: e.args.instructor,
         amount: ethers.formatEther(e.args.amount),
         ref: e.args.activityRef,
         block: e.blockNumber,
       }));
       setHistory(parsed.reverse());
-
-      if (addresses.achievementBadge) {
-        const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, readProvider);
-        const badgeEvents = await queryLogsChunked(
-          badge,
-          badge.filters.BadgeMinted(account),
-          readProvider,
-          addresses.deployBlock
-        );
-        const parsedBadges = await Promise.all(
-          badgeEvents.map(async (e) => {
-            const tokenId = e.args.tokenId;
-            let svg = null;
-            try {
-              const uri = await badge.tokenURI(tokenId);
-              const json = JSON.parse(atob(uri.split(",")[1]));
-              svg = json.image;
-            } catch (_) {}
-            return {
-              tokenId: tokenId.toString(),
-              level: e.args.level.toString(),
-              name: e.args.name,
-              svg,
-            };
-          })
-        );
-        setBadges(parsedBadges);
-      }
     } catch (e) {
       setError("Couldn't read the ledger. Check your network connection and try Refresh.");
     }
@@ -285,8 +528,20 @@ function StudentPanel({ account, provider, refreshKey }) {
             <span className="display text-2xl text-brass mb-1">SCT</span>
           </div>
         )}
-        <p className="mt-4 font-mono text-xs text-ink-soft break-all">{account}</p>
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <p className="font-mono text-xs text-ink-soft break-all">{account}</p>
+          {!loading && (
+            <button
+              onClick={() => { navigator.clipboard?.writeText(verifyLink(account)); pushToast("ok", "Share link copied"); }}
+              className="btn btn-ghost px-3 py-1 text-xs whitespace-nowrap"
+            >
+              Share my honors
+            </button>
+          )}
+        </div>
       </div>
+
+      {!loading && <MilestoneProgress balance={balance} />}
 
       <div className="paper p-6 rise" style={{ animationDelay: "0.08s" }}>
         <div className="flex items-baseline justify-between mb-1">
@@ -302,17 +557,7 @@ function StudentPanel({ account, provider, refreshKey }) {
           <p className="text-sm text-ink-soft">No honors yet — earn 50 SCT to claim your first seal.</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {badges.map((b) => (
-              <div key={b.tokenId} className="trophy flex flex-col items-center gap-2">
-                {b.svg ? (
-                  <img src={b.svg} alt={b.name} className="w-full rounded-md" />
-                ) : (
-                  <div className="w-full aspect-square grid place-items-center text-4xl bg-parchment-3 rounded-md text-brass">★</div>
-                )}
-                <p className="display text-sm font-semibold text-ink text-center leading-tight">{b.name}</p>
-                <p className="font-mono text-[0.65rem] text-ink-soft">L{b.level} · #{b.tokenId}</p>
-              </div>
-            ))}
+            {badges.map((b) => <BadgeCard key={b.tokenId} b={b} />)}
           </div>
         )}
       </div>
@@ -335,7 +580,7 @@ function StudentPanel({ account, provider, refreshKey }) {
                 <tr key={i}>
                   <td><RefCell value={h.ref} /></td>
                   <td className="text-forest font-mono font-semibold">+{h.amount}</td>
-                  <td className="text-ink-soft font-mono">{h.instructor}</td>
+                  <td className="text-ink-soft font-mono"><AddrLabel address={h.instructor} /></td>
                   <td className="text-ink-soft font-mono">#{h.block}</td>
                 </tr>
               ))}
@@ -359,6 +604,18 @@ function InstructorPanel({ signer, provider, refreshKey, onMinted }) {
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const MAX_MB = 10;
+    const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"];
+    if (file.size > MAX_MB * 1024 * 1024) {
+      setStatus({ type: "err", msg: `File too large — max ${MAX_MB} MB` });
+      e.target.value = "";
+      return;
+    }
+    if (file.type && !allowed.includes(file.type)) {
+      setStatus({ type: "err", msg: "Unsupported type — attach an image or PDF" });
+      e.target.value = "";
+      return;
+    }
     try {
       setUploading(true);
       setStatus({ type: "pending", msg: `Pinning ${file.name} to IPFS…` });
@@ -379,7 +636,7 @@ function InstructorPanel({ signer, provider, refreshKey, onMinted }) {
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
       const events = await queryLogsChunked(manager, manager.filters.ActivityApproved(), readProvider, addresses.deployBlock);
       setRecent(events.slice(-5).reverse().map((e) => ({
-        student: shortAddr(e.args.student),
+        student: e.args.student,
         amount: ethers.formatEther(e.args.amount),
         ref: e.args.activityRef,
         block: e.blockNumber,
@@ -395,20 +652,28 @@ function InstructorPanel({ signer, provider, refreshKey, onMinted }) {
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) { setStatus({ type: "err", msg: "Amount must be a number greater than 0" }); return; }
     if (!activityRef.trim()) { setStatus({ type: "err", msg: "Activity reference or CID is required" }); return; }
+    let pid;
     try {
       setBusy(true);
       setStatus({ type: "pending", msg: "Confirm in MetaMask…" });
+      pid = pushToast("pending", "Confirm in MetaMask…", 0);
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, signer);
       const tx = await manager.approveActivity(student, ethers.parseEther(amount), activityRef.trim());
+      dismissToast(pid);
+      pid = pushToast("pending", "Mining… " + tx.hash.slice(0, 10) + "…", 0);
       setStatus({ type: "pending", msg: "Mining… " + tx.hash.slice(0, 12) + "…" });
       await tx.wait();
+      dismissToast(pid); pid = null;
       setStatus({ type: "ok", msg: `Minted ${amount} SCT to ${shortAddr(student)}` });
+      pushToast("ok", `Minted ${amount} SCT to ${shortAddr(student)}`);
       setStudent(""); setActivityRef("");
       loadRecent();
       onMinted?.();
     } catch (err) {
+      if (pid) dismissToast(pid);
       const msg = friendlyError(err);
       setStatus({ type: "err", msg });
+      pushToast("err", msg);
     } finally { setBusy(false); }
   };
 
@@ -434,7 +699,7 @@ function InstructorPanel({ signer, provider, refreshKey, onMinted }) {
                 {ipfsConfigured() && (
                   <label className={`btn btn-ghost px-3 flex items-center cursor-pointer whitespace-nowrap ${uploading ? "opacity-60" : ""}`}>
                     {uploading ? "Pinning…" : "Attach"}
-                    <input type="file" aria-label="Upload evidence file to IPFS" className="hidden" onChange={handleFile} disabled={uploading} />
+                    <input type="file" accept="image/*,application/pdf" aria-label="Upload evidence file to IPFS" className="hidden" onChange={handleFile} disabled={uploading} />
                   </label>
                 )}
               </div>
@@ -467,7 +732,7 @@ function InstructorPanel({ signer, provider, refreshKey, onMinted }) {
               {recent.map((r, i) => (
                 <tr key={i}>
                   <td><RefCell value={r.ref} /></td>
-                  <td className="font-mono text-ink-soft">{r.student}</td>
+                  <td className="font-mono text-ink-soft"><AddrLabel address={r.student} /></td>
                   <td className="text-forest font-mono font-semibold">{r.amount}</td>
                   <td className="text-ink-soft font-mono">#{r.block}</td>
                 </tr>
@@ -497,29 +762,45 @@ function AdminPanel({ signer, provider, account }) {
 
   const grantRole = async () => {
     if (!ethers.isAddress(target)) { setStatus({ type: "err", msg: "Invalid address" }); return; }
+    let pid;
     try {
       setBusy(true); setStatus({ type: "pending", msg: "Confirm in MetaMask…" });
+      pid = pushToast("pending", "Confirm in MetaMask…", 0);
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, signer);
       const tx = await manager.grantRole(INSTRUCTOR_ROLE, target);
+      dismissToast(pid); pid = pushToast("pending", "Mining… " + tx.hash.slice(0, 10) + "…", 0);
       await tx.wait();
+      dismissToast(pid); pid = null;
       setStatus({ type: "ok", msg: `INSTRUCTOR_ROLE granted to ${shortAddr(target)}` });
+      pushToast("ok", `Role granted to ${shortAddr(target)}`);
       setIsInstructor(true);
     } catch (err) {
-      setStatus({ type: "err", msg: friendlyError(err) });
+      if (pid) dismissToast(pid);
+      const msg = friendlyError(err);
+      setStatus({ type: "err", msg });
+      pushToast("err", msg);
     } finally { setBusy(false); }
   };
 
   const revokeRole = async () => {
     if (!ethers.isAddress(target)) { setStatus({ type: "err", msg: "Invalid address" }); return; }
+    let pid;
     try {
       setBusy(true); setStatus({ type: "pending", msg: "Confirm in MetaMask…" });
+      pid = pushToast("pending", "Confirm in MetaMask…", 0);
       const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, signer);
       const tx = await manager.revokeRole(INSTRUCTOR_ROLE, target);
+      dismissToast(pid); pid = pushToast("pending", "Mining… " + tx.hash.slice(0, 10) + "…", 0);
       await tx.wait();
+      dismissToast(pid); pid = null;
       setStatus({ type: "ok", msg: `INSTRUCTOR_ROLE revoked from ${shortAddr(target)}` });
+      pushToast("ok", `Role revoked from ${shortAddr(target)}`);
       setIsInstructor(false);
     } catch (err) {
-      setStatus({ type: "err", msg: friendlyError(err) });
+      if (pid) dismissToast(pid);
+      const msg = friendlyError(err);
+      setStatus({ type: "err", msg });
+      pushToast("err", msg);
     } finally { setBusy(false); }
   };
 
@@ -572,12 +853,173 @@ function AdminPanel({ signer, provider, account }) {
           </div>
         )}
       </div>
+
+      <AddressBook />
+    </div>
+  );
+}
+
+function LeaderboardPanel({ account, refreshKey }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
+        const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, readProvider);
+        const [acts, owners] = await Promise.all([
+          queryLogsChunked(manager, manager.filters.ActivityApproved(), readProvider, addresses.deployBlock),
+          badgeOwners(badge),
+        ]);
+        const map = new Map();
+        const get = (s) => map.get(s) || { student: s, sct: 0n, badges: 0 };
+        for (const e of acts) {
+          const c = get(e.args.student);
+          c.sct += e.args.amount;
+          map.set(e.args.student, c);
+        }
+        for (const { owner } of owners) {
+          const c = get(owner);
+          c.badges += 1;
+          map.set(owner, c);
+        }
+        const list = [...map.values()]
+          .map((r) => ({ ...r, sctNum: Number(ethers.formatEther(r.sct)) }))
+          .sort((a, b) => b.sctNum - a.sctNum);
+        if (!cancelled) setRows(list);
+      } catch (_) {
+        if (!cancelled) setRows([]);
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [refreshKey]);
+
+  const medal = (i) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`);
+
+  return (
+    <div className="paper p-6 rise">
+      <div className="flex items-baseline justify-between mb-1">
+        <h2 className="display text-xl font-semibold text-ink">Leaderboard</h2>
+        <span className="eyebrow">by SCT earned</span>
+      </div>
+      <p className="text-sm text-ink-soft mb-5">Ranked from on-chain approval records.</p>
+      {loading ? (
+        <div className="space-y-3 pt-1">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-6 w-full" />)}</div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-ink-soft">No approvals recorded yet.</p>
+      ) : (
+        <table className="ledger">
+          <thead>
+            <tr><th>Rank</th><th>Student</th><th>SCT</th><th>Honors</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const mine = account && r.student.toLowerCase() === account.toLowerCase();
+              return (
+                <tr key={r.student} style={mine ? { background: "color-mix(in srgb, var(--color-brass) 13%, transparent)" } : undefined}>
+                  <td className="font-mono">{medal(i)}</td>
+                  <td className="font-mono text-ink-soft">
+                    <AddrLabel address={r.student} />
+                    {mine && <span className="stamp stamp--ok ml-2">you</span>}
+                  </td>
+                  <td className="text-forest font-mono font-semibold">{niceNum(r.sctNum)}</td>
+                  <td className="font-mono text-ink-soft">{r.badges}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function VerifyPanel() {
+  const [input, setInput] = useState("");
+  const [addr, setAddr] = useState(null);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  useLabelsVersion();
+
+  const verify = async (e, override) => {
+    e?.preventDefault();
+    const a = (override ?? input).trim();
+    if (override) setInput(override);
+    if (!ethers.isAddress(a)) { setError("Enter a valid wallet address (0x…)"); setData(null); return; }
+    setError(null); setLoading(true); setAddr(a); setData(null);
+    try {
+      const token = new ethers.Contract(addresses.successToken, successTokenAbi, readProvider);
+      const badge = new ethers.Contract(addresses.achievementBadge, achievementBadgeAbi, readProvider);
+      const manager = new ethers.Contract(addresses.rewardManager, rewardManagerAbi, readProvider);
+      const bal = await token.balanceOf(a);
+      const [badges, acts] = await Promise.all([
+        loadBadgesOf(badge, a),
+        queryLogsChunked(manager, manager.filters.ActivityApproved(null, a), readProvider, addresses.deployBlock),
+      ]);
+      setData({ balance: ethers.formatEther(bal), badges, activities: acts.length });
+    } catch (_) {
+      setError("Couldn't read the ledger. Check your connection and try again.");
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("verify");
+    if (q && ethers.isAddress(q)) verify(null, q);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="paper p-6 rise">
+      <div className="flex items-baseline justify-between mb-1">
+        <h2 className="display text-xl font-semibold text-ink">Verify a Student</h2>
+        <span className="eyebrow">public · read-only</span>
+      </div>
+      <p className="text-sm text-ink-soft mb-4">Anyone can confirm on-chain honors — no wallet needed.</p>
+      <form onSubmit={verify} className="flex gap-2 mb-4">
+        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="0x… wallet address" className="field flex-1" aria-label="Wallet address to verify" />
+        <button type="submit" disabled={loading} className="btn btn-primary px-5 whitespace-nowrap">{loading ? "Reading…" : "Verify"}</button>
+      </form>
+      {error && <div className="banner banner-err">{error}</div>}
+      {addr && !loading && data && (
+        <div className="space-y-5">
+          {nameFor(addr) && <p className="display text-lg font-semibold text-ink">{nameFor(addr)}</p>}
+          <div className="flex flex-wrap items-end gap-2">
+            <span className="display text-4xl font-semibold text-ink tabular-nums balance-reveal">{niceNum(data.balance)}</span>
+            <span className="display text-lg text-brass mb-1">SCT</span>
+            <span className="ml-auto text-sm text-ink-soft">{data.activities} activities · {data.badges.length} honors</span>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <p className="font-mono text-xs text-ink-soft break-all">{addr}</p>
+            <button
+              onClick={() => { navigator.clipboard?.writeText(verifyLink(addr)); pushToast("ok", "Verify link copied"); }}
+              className="btn btn-ghost px-3 py-1 text-xs whitespace-nowrap"
+            >
+              Copy verify link
+            </button>
+          </div>
+          <MilestoneProgress balance={data.balance} />
+          {data.badges.length === 0 ? (
+            <p className="text-sm text-ink-soft">No honors yet for this address.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {data.badges.map((b) => <BadgeCard key={b.tokenId} b={b} />)}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 const TABS = [
   { id: "Student", icon: Icon.cap },
+  { id: "Honors", icon: Icon.coin },
+  { id: "Verify", icon: Icon.check },
   { id: "Instructor", icon: Icon.quill },
   { id: "Admin", icon: Icon.gear },
 ];
@@ -592,7 +1034,7 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  const ROLE_TABS = { admin: ["Student", "Instructor", "Admin"], instructor: ["Student", "Instructor"], student: ["Student"] };
+  const ROLE_TABS = { admin: ["Student", "Honors", "Verify", "Instructor", "Admin"], instructor: ["Student", "Honors", "Verify", "Instructor"], student: ["Student", "Honors", "Verify"] };
   const allowedTabs = ROLE_TABS[role] || ["Student"];
   const visibleTabs = TABS.filter((t) => allowedTabs.includes(t.id));
 
@@ -691,6 +1133,10 @@ export default function App() {
 
             <StatsStrip />
 
+            <div className="max-w-2xl mx-auto pb-16">
+              <VerifyPanel />
+            </div>
+
             <div className="pb-16">
               <p className="eyebrow text-center mb-8">How the ledger works</p>
               <div className="flex flex-col sm:flex-row items-stretch justify-center gap-3 max-w-3xl mx-auto">
@@ -735,6 +1181,8 @@ export default function App() {
 
               <div key={tab} className="panel-enter">
                 {tab === "Student" && <StudentPanel account={account} provider={provider} refreshKey={refreshKey} />}
+                {tab === "Honors" && <LeaderboardPanel account={account} refreshKey={refreshKey} />}
+                {tab === "Verify" && <VerifyPanel />}
                 {tab === "Instructor" && <InstructorPanel signer={signer} provider={provider} refreshKey={refreshKey} onMinted={refresh} />}
                 {tab === "Admin" && <AdminPanel signer={signer} provider={provider} account={account} />}
               </div>
@@ -746,6 +1194,8 @@ export default function App() {
       <footer className="max-w-4xl mx-auto px-6 pb-10 pt-4">
         <p className="eyebrow text-center opacity-70">Sealed on-chain · Polygon · {NETWORK_NAME}</p>
       </footer>
+
+      <Toaster />
     </div>
   );
 }
