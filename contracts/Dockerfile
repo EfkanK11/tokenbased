@@ -11,7 +11,8 @@ COPY . .
 RUN npx hardhat compile
 
 COPY docker-entrypoint.sh /usr/local/bin/laurel-chain
-RUN chmod +x /usr/local/bin/laurel-chain
+# Strip CR in case the build context was checked out on Windows with CRLF.
+RUN sed -i 's/\r$//' /usr/local/bin/laurel-chain && chmod +x /usr/local/bin/laurel-chain
 
 EXPOSE 8545
 

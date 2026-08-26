@@ -1,0 +1,10 @@
+# Container entrypoints run inside Linux images. Windows checkouts default to
+# CRLF, which turns the shebang into "#!/bin/bash\r" and makes the script
+# unrunnable (exit 127). Pin these to LF regardless of the checkout platform.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+.dockerignore   text eol=lf
+docker-compose.yml text eol=lf
+
+# Windows batch files need CRLF.
+*.bat           text eol=crlf
