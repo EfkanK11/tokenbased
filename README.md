@@ -8,7 +8,7 @@ award **Achievement Badges (ERC-721)** at earning milestones. Badges are
 **soulbound** — they cannot be sold or transferred — and their artwork is generated
 entirely on-chain, so it never depends on a server staying online.
 
-> Graduation project — Efkan Kasaboğlu · Student ID 220304023
+>  project — Efkan Kasaboğlu ·
 
 ---
 
