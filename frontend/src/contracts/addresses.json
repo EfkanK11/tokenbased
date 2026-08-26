@@ -1,7 +1,7 @@
 {
-  "successToken": "0xC844aC4DD2B61b6D77Fc616A3369433E1fD518d5",
-  "rewardManager": "0xA9Ace74425aC42d8e858988F177D09C580082a90",
-  "achievementBadge": "0x36FC881E469ff8Ad5916d827E69E9AB20246D1d5",
+  "successToken": "0x980233928E995907F85264Fb00cEC13a094fb65a",
+  "rewardManager": "0xfCa029578Aa84dDCfee999c7B5576A99DE4F9F00",
+  "achievementBadge": "0xdeE6Be7F0F756E82e8F5818961B1467FD2cb026E",
   "chainId": 80002,
-  "deployBlock": 40662960
+  "deployBlock": 45246053
 }

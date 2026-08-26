@@ -244,4 +244,56 @@ describe("Token-Based Success Award System", function () {
       ).to.be.reverted;
     });
   });
+
+  describe("Soulbound badges (ERC-5192)", function () {
+    beforeEach(async function () {
+      await rewardManager
+        .connect(instructor)
+        .approveActivity(student.address, ethers.parseEther("50"), "act-1");
+    });
+
+    it("reports locked() = true for a minted badge", async function () {
+      expect(await achievementBadge.locked(1)).to.equal(true);
+    });
+
+    it("reverts locked() for a nonexistent token", async function () {
+      await expect(achievementBadge.locked(999)).to.be.reverted;
+    });
+
+    it("blocks transferFrom (non-transferable)", async function () {
+      await expect(
+        achievementBadge
+          .connect(student)
+          .transferFrom(student.address, outsider.address, 1)
+      ).to.be.revertedWithCustomError(achievementBadge, "Soulbound");
+    });
+
+    it("blocks safeTransferFrom (non-transferable)", async function () {
+      await expect(
+        achievementBadge
+          .connect(student)
+          ["safeTransferFrom(address,address,uint256)"](
+            student.address,
+            outsider.address,
+            1
+          )
+      ).to.be.revertedWithCustomError(achievementBadge, "Soulbound");
+    });
+
+    it("declares ERC-5192 interface support", async function () {
+      expect(
+        await achievementBadge.supportsInterface("0xb45a3c0e")
+      ).to.equal(true);
+    });
+
+    it("emits Locked on mint", async function () {
+      await expect(
+        rewardManager
+          .connect(instructor)
+          .approveActivity(student.address, ethers.parseEther("50"), "act-2")
+      )
+        .to.emit(achievementBadge, "Locked")
+        .withArgs(2);
+    });
+  });
 });

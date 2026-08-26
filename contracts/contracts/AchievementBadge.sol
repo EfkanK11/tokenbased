@@ -22,6 +22,10 @@ contract AchievementBadge is ERC721, Ownable {
         string name
     );
 
+    event Locked(uint256 tokenId);
+
+    error Soulbound();
+
     constructor(address initialOwner)
         ERC721("Campus Achievement Badge", "BADGE")
         Ownable(initialOwner)
@@ -42,10 +46,35 @@ contract AchievementBadge is ERC721, Ownable {
 
         _safeMint(student, tokenId);
         emit BadgeMinted(student, tokenId, level, name);
+        emit Locked(tokenId);
     }
 
     function totalMinted() external view returns (uint256) {
         return _nextTokenId - 1;
+    }
+
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        override
+        returns (address)
+    {
+        address from = _ownerOf(tokenId);
+        if (from != address(0) && to != address(0)) revert Soulbound();
+        return super._update(to, tokenId, auth);
+    }
+
+    function locked(uint256 tokenId) external view returns (bool) {
+        _requireOwned(tokenId);
+        return true;
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override
+        returns (bool)
+    {
+        return interfaceId == 0xb45a3c0e || super.supportsInterface(interfaceId);
     }
 
     function tokenURI(uint256 tokenId)
