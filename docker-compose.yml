@@ -1,0 +1,40 @@
+# Laurel — self-contained demo stack.
+#
+#   docker compose up --build
+#
+# Brings up a local blockchain with the three contracts already deployed, roles
+# wired, and demo activity seeded — then serves the app against it.
+# Nothing external is needed: no testnet, no faucet, no POL.
+
+services:
+  chain:
+    build: ./contracts
+    container_name: laurel-chain
+    ports:
+      - "8545:8545"
+    volumes:
+      - deployments:/app/deployments
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('fs').existsSync('/app/deployments/.container-ready') || process.exit(1)"
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 10s
+
+  web:
+    build: ./frontend
+    container_name: laurel-web
+    ports:
+      - "5173:5173"
+    volumes:
+      - deployments:/deployments:ro
+    depends_on:
+      chain:
+        condition: service_healthy
+
+volumes:
+  deployments:
